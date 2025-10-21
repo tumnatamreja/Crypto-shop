@@ -16,8 +16,8 @@ export interface Product {
   description?: string;
   price: number;
   currency: string;
-  map_link: string;
-  image_link: string;
+  picture_link: string;
+  quantity: number;
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
@@ -29,6 +29,7 @@ export interface Order {
   total_amount: number;
   currency: string;
   status: 'pending' | 'paid' | 'failed' | 'expired';
+  delivery_status: 'pending' | 'delivered';
   payment_id?: string;
   payment_url?: string;
   created_at: Date;
@@ -40,10 +41,12 @@ export interface OrderItem {
   order_id: string;
   product_id?: string;
   product_name: string;
+  product_picture?: string;
   product_price: number;
-  map_link: string;
-  image_link: string;
   quantity: number;
+  delivery_map_link?: string;
+  delivery_image_link?: string;
+  delivered_at?: Date;
   created_at: Date;
 }
 
