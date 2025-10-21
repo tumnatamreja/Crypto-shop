@@ -56,9 +56,13 @@ app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, adminCont
 app.get('/api/admin/orders', authenticateToken, requireAdmin, adminController.getAllOrders);
 app.put('/api/admin/orders/:id', authenticateToken, requireAdmin, adminController.updateOrderStatus);
 
+// Admin - Delivery
+app.put('/api/admin/orders/:orderId/deliver', authenticateToken, requireAdmin, adminController.updateDeliveryInfo);
+
 // Admin - Users
 app.get('/api/admin/users', authenticateToken, requireAdmin, adminController.getAllUsers);
 app.put('/api/admin/users/:id', authenticateToken, requireAdmin, adminController.updateUserAdmin);
+app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, adminController.deleteUser);
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
