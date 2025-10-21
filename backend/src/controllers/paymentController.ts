@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../types';
-import { createInvoice } from '../services/oxapayService';
+import { createInvoice, createStaticAddress } from '../services/oxapayService';
 
 export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
@@ -275,5 +275,59 @@ export const handleWebhook = async (req: Request, res: Response) => {
     console.error('Webhook error:', error);
     // Still return 'ok' to avoid webhook retries
     res.status(200).send('ok');
+  }
+};
+
+// Create static payment address for white-label payment page
+export const createStaticAddressHandler = async (req: AuthRequest, res: Response) => {
+  try {
+    const { orderId, currency, network } = req.body;
+
+    if (!orderId || !currency) {
+      return res.status(400).json({ error: 'Order ID and currency are required' });
+    }
+
+    console.log('Creating static address:', { orderId, currency, network });
+
+    // Get order details
+    const orderResult = await query(
+      'SELECT * FROM orders WHERE id = $1 AND user_id = $2',
+      [orderId, req.user!.id]
+    );
+
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Create static address via OxaPay
+    const staticAddress = await createStaticAddress(
+      parseFloat(order.total_amount),
+      currency,
+      network || currency,
+      orderId
+    );
+
+    // Update order with payment details
+    await query(
+      'UPDATE orders SET payment_id = $1, currency = $2 WHERE id = $3',
+      [staticAddress.trackId || staticAddress.address, currency, orderId]
+    );
+
+    res.json({
+      address: staticAddress.address,
+      qrCode: staticAddress.qrCode,
+      amount: order.total_amount,
+      currency: currency,
+      network: network || currency,
+    });
+  } catch (error: any) {
+    console.error('Create static address error:', error);
+    console.error('Error details:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to create payment address',
+      message: error.response?.data?.message || error.message
+    });
   }
 };

@@ -87,3 +87,78 @@ export const verifyPayment = async (trackId: number): Promise<any> => {
     throw new Error('Payment verification error');
   }
 };
+
+export const createStaticAddress = async (
+  amount: number,
+  currency: string,
+  network: string,
+  orderId: string
+): Promise<any> => {
+  try {
+    const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const callbackUrl = `${baseUrl}/api/webhook/oxapay`;
+
+    // Map currency to proper format for OxaPay
+    let apiCurrency = currency;
+
+    // For tokens with different networks (USDT, USDC, etc)
+    if (currency === 'USDT' || currency === 'USDC' || currency === 'DAI' || currency === 'BUSD') {
+      if (network === 'TRX') {
+        apiCurrency = `${currency}_TRX`;
+      } else if (network === 'ETH') {
+        apiCurrency = `${currency}_ETH`;
+      } else if (network === 'BSC') {
+        apiCurrency = `${currency}_BSC`;
+      } else if (network === 'POLYGON') {
+        apiCurrency = `${currency}_POLYGON`;
+      } else if (network === 'TON') {
+        apiCurrency = `${currency}_TON`;
+      }
+    }
+
+    const payload = {
+      amount: amount,
+      currency: apiCurrency,
+      orderId: orderId,
+      callbackUrl: callbackUrl,
+      feePaidByPayer: 1,
+    };
+
+    console.log('OxaPay Static Address Request:', {
+      url: `${OXAPAY_API_URL}/merchants/request/staticAddress`,
+      payload,
+      apiKey: process.env.OXAPAY_API_KEY ? '***SET***' : '***MISSING***'
+    });
+
+    const response = await axios.post(
+      `${OXAPAY_API_URL}/merchants/request/staticAddress`,
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'merchant-api-key': process.env.OXAPAY_API_KEY || ''
+        }
+      }
+    );
+
+    console.log('OxaPay Static Address Response:', response.data);
+
+    if (response.data && response.data.result === 100) {
+      return {
+        address: response.data.address,
+        trackId: response.data.trackId,
+        qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${response.data.address}`,
+      };
+    } else {
+      const errorMsg = response.data?.message || response.data?.error || 'Unknown error';
+      console.error('OxaPay Static Address failed:', response.data);
+      throw new Error(`Failed to create static address: ${errorMsg}`);
+    }
+  } catch (error: any) {
+    console.error('OxaPay Static Address error:', error.response?.data || error.message);
+    if (error.response?.data) {
+      console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
+    }
+    throw new Error('Payment provider error: ' + (error.response?.data?.message || error.message));
+  }
+};

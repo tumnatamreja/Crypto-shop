@@ -44,6 +44,7 @@ app.get('/api/orders/:id', authenticateToken, orderController.getOrderById);
 
 // Payment routes
 app.post('/api/checkout', authenticateToken, paymentController.createCheckout);
+app.post('/api/payment/create-static-address', authenticateToken, paymentController.createStaticAddressHandler);
 app.post('/api/webhook/oxapay', paymentController.handleWebhook);
 
 // Admin routes

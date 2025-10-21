@@ -147,7 +147,8 @@ export default function Home() {
     setCheckoutLoading(true);
     try {
       const response = await createCheckout(items, city, district, promoCode || undefined);
-      window.location.href = response.data.paymentUrl;
+      // Redirect to our white-label payment page instead of OxaPay
+      router.push(`/payment/${response.data.orderId}`);
     } catch (error: any) {
       alert(error.response?.data?.error || 'Checkout failed');
     } finally {
