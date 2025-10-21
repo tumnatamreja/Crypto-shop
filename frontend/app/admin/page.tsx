@@ -10,8 +10,10 @@ import {
   deleteProduct,
   getAdminOrders,
   updateOrderStatus,
+  updateDeliveryInfo,
   getAdminUsers,
   updateUserAdmin,
+  deleteUser,
 } from '@/lib/api';
 
 type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'settings';
@@ -22,19 +24,29 @@ interface Product {
   description: string;
   price: number;
   currency: string;
-  map_link: string;
-  image_link: string;
+  picture_link: string;
+  quantity: number;
   is_active: boolean;
 }
 
 interface Order {
   id: string;
   username: string;
+  telegram: string;
   total_amount: number;
   currency: string;
   status: string;
+  delivery_status: string;
   created_at: string;
-  items: any[];
+  items: {
+    id: string;
+    product_name: string;
+    product_picture: string;
+    product_price: number;
+    quantity: number;
+    delivery_map_link?: string;
+    delivery_image_link?: string;
+  }[];
 }
 
 interface User {
@@ -43,12 +55,15 @@ interface User {
   telegram: string;
   is_admin: boolean;
   created_at: string;
+  total_orders: number;
+  total_spent: number;
 }
 
 export default function AdminPanel() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
   const [loading, setLoading] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Dashboard
   const [stats, setStats] = useState<any>(null);
@@ -61,16 +76,25 @@ export default function AdminPanel() {
     name: '',
     description: '',
     price: '',
-    currency: 'USD',
-    map_link: '',
-    image_link: '',
+    currency: 'EUR',
+    picture_link: '',
+    quantity: 1,
   });
 
   // Orders
   const [orders, setOrders] = useState<Order[]>([]);
+  const [orderStatusFilter, setOrderStatusFilter] = useState('');
+  const [orderDeliveryFilter, setOrderDeliveryFilter] = useState('');
+  const [deliveryForm, setDeliveryForm] = useState({
+    orderId: '',
+    delivery_map_link: '',
+    delivery_image_link: '',
+  });
+  const [showDeliveryForm, setShowDeliveryForm] = useState(false);
 
   // Users
   const [users, setUsers] = useState<User[]>([]);
+  const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -87,7 +111,7 @@ export default function AdminPanel() {
     }
 
     loadData();
-  }, [activeTab]);
+  }, [activeTab, orderStatusFilter, orderDeliveryFilter, userSearch]);
 
   const loadData = async () => {
     setLoading(true);
@@ -99,10 +123,10 @@ export default function AdminPanel() {
         const res = await getAdminProducts();
         setProducts(res.data.products);
       } else if (activeTab === 'orders') {
-        const res = await getAdminOrders();
+        const res = await getAdminOrders(orderStatusFilter, orderDeliveryFilter);
         setOrders(res.data.orders);
       } else if (activeTab === 'users') {
-        const res = await getAdminUsers();
+        const res = await getAdminUsers(userSearch);
         setUsers(res.data.users);
       }
     } catch (error) {
@@ -134,9 +158,9 @@ export default function AdminPanel() {
         name: '',
         description: '',
         price: '',
-        currency: 'USD',
-        map_link: '',
-        image_link: '',
+        currency: 'EUR',
+        picture_link: '',
+        quantity: 1,
       });
       loadData();
     } catch (error: any) {
@@ -151,8 +175,8 @@ export default function AdminPanel() {
       description: product.description || '',
       price: product.price.toString(),
       currency: product.currency,
-      map_link: product.map_link,
-      image_link: product.image_link,
+      picture_link: product.picture_link,
+      quantity: product.quantity,
     });
     setShowProductForm(true);
   };
@@ -177,6 +201,36 @@ export default function AdminPanel() {
     }
   };
 
+  const handleDeliverySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updateDeliveryInfo(
+        deliveryForm.orderId,
+        deliveryForm.delivery_map_link,
+        deliveryForm.delivery_image_link
+      );
+      setShowDeliveryForm(false);
+      setDeliveryForm({
+        orderId: '',
+        delivery_map_link: '',
+        delivery_image_link: '',
+      });
+      loadData();
+      alert('Delivery info sent successfully!');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to update delivery');
+    }
+  };
+
+  const handleShowDeliveryForm = (order: Order) => {
+    setDeliveryForm({
+      orderId: order.id,
+      delivery_map_link: '',
+      delivery_image_link: '',
+    });
+    setShowDeliveryForm(true);
+  };
+
   const handleToggleAdmin = async (userId: string, isAdmin: boolean) => {
     if (!confirm(`${isAdmin ? 'Remove' : 'Grant'} admin privileges?`)) return;
 
@@ -188,35 +242,42 @@ export default function AdminPanel() {
     }
   };
 
-  return (
-    <div className="min-h-screen p-8">
-      {/* Header */}
-      <header className="cyber-card mb-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold neon-glow">[ ADMIN PANEL ]</h1>
-          <div className="flex gap-4">
-            <button onClick={() => router.push('/')} className="cyber-button">
-              Shop
-            </button>
-            <button
-              onClick={() => router.push('/profile')}
-              className="cyber-button"
-            >
-              Profile
-            </button>
-          </div>
-        </div>
-      </header>
+  const handleDeleteUser = async (userId: string, username: string) => {
+    if (!confirm(`Are you sure you want to delete user @${username}? This action cannot be undone.`)) return;
 
-      {/* Tabs */}
-      <div className="cyber-card mb-8">
-        <div className="flex gap-4 overflow-x-auto">
-          {(['dashboard', 'products', 'orders', 'users', 'settings'] as Tab[]).map(
-            (tab) => (
+    try {
+      await deleteUser(userId);
+      loadData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
+  return (
+    <div className="min-h-screen">
+      {/* Mobile Header */}
+      <header className="lg:hidden cyber-card m-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold neon-glow">[ ADMIN ]</h1>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="cyber-button"
+          >
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+        </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="mt-4 space-y-2">
+            {(['dashboard', 'products', 'orders', 'users', 'settings'] as Tab[]).map((tab) => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3 font-bold uppercase transition-all ${
+                onClick={() => {
+                  setActiveTab(tab);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full px-4 py-3 font-bold uppercase transition-all ${
                   activeTab === tab
                     ? 'bg-neon-green text-cyber-dark'
                     : 'text-neon-green hover:bg-neon-green/20'
@@ -224,463 +285,852 @@ export default function AdminPanel() {
               >
                 {tab}
               </button>
-            )
-          )}
-        </div>
-      </div>
+            ))}
+            <button
+              onClick={() => router.push('/')}
+              className="w-full cyber-button"
+            >
+              🏠 Shop
+            </button>
+            <button
+              onClick={() => router.push('/profile')}
+              className="w-full cyber-button"
+            >
+              👤 Profile
+            </button>
+          </div>
+        )}
+      </header>
 
-      {/* Content */}
-      {loading ? (
-        <div className="text-center">
-          <div className="loading mx-auto"></div>
-        </div>
-      ) : (
-        <>
-          {/* Dashboard */}
-          {activeTab === 'dashboard' && stats && (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div className="cyber-card">
-                  <h3 className="text-neon-cyan mb-2">Total Users</h3>
-                  <p className="text-4xl font-bold text-neon-green">
-                    {stats.stats.totalUsers}
-                  </p>
-                </div>
-                <div className="cyber-card">
-                  <h3 className="text-neon-cyan mb-2">Total Products</h3>
-                  <p className="text-4xl font-bold text-neon-green">
-                    {stats.stats.totalProducts}
-                  </p>
-                </div>
-                <div className="cyber-card">
-                  <h3 className="text-neon-cyan mb-2">Total Orders</h3>
-                  <p className="text-4xl font-bold text-neon-green">
-                    {stats.stats.totalOrders}
-                  </p>
-                </div>
-                <div className="cyber-card">
-                  <h3 className="text-neon-cyan mb-2">Total Revenue</h3>
-                  <p className="text-4xl font-bold text-neon-green">
-                    ${stats.stats.totalRevenue.toFixed(2)}
-                  </p>
-                </div>
-              </div>
+      {/* Desktop Layout */}
+      <div className="flex flex-col lg:flex-row min-h-screen">
+        {/* Sidebar - Desktop */}
+        <aside className="hidden lg:block lg:w-64 cyber-card m-4 lg:sticky lg:top-4 lg:h-screen overflow-y-auto">
+          <h1 className="text-3xl font-bold neon-glow mb-6">[ ADMIN ]</h1>
 
-              <div className="cyber-card">
-                <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
-                  Recent Orders
-                </h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-neon-green">
-                        <th className="text-left p-2 text-neon-cyan">Order ID</th>
-                        <th className="text-left p-2 text-neon-cyan">User</th>
-                        <th className="text-left p-2 text-neon-cyan">Amount</th>
-                        <th className="text-left p-2 text-neon-cyan">Status</th>
-                        <th className="text-left p-2 text-neon-cyan">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stats.recentOrders.map((order: any) => (
-                        <tr key={order.id} className="border-b border-neon-green/30">
-                          <td className="p-2">{order.id.slice(0, 8)}</td>
-                          <td className="p-2">@{order.username}</td>
-                          <td className="p-2">
-                            {order.total_amount} {order.currency}
-                          </td>
-                          <td className="p-2">
-                            <span
-                              className={`font-bold ${
-                                order.status === 'paid'
-                                  ? 'text-neon-green'
-                                  : order.status === 'pending'
-                                  ? 'text-yellow-500'
-                                  : 'text-red-500'
-                              }`}
-                            >
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="p-2">
-                            {new Date(order.created_at).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+          <nav className="space-y-2 mb-6">
+            {(['dashboard', 'products', 'orders', 'users', 'settings'] as Tab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`w-full px-4 py-3 font-bold uppercase transition-all text-left ${
+                  activeTab === tab
+                    ? 'bg-neon-green text-cyber-dark'
+                    : 'text-neon-green hover:bg-neon-green/20'
+                }`}
+              >
+                {tab === 'dashboard' && '📊 '}
+                {tab === 'products' && '📦 '}
+                {tab === 'orders' && '🛒 '}
+                {tab === 'users' && '👥 '}
+                {tab === 'settings' && '⚙️ '}
+                {tab}
+              </button>
+            ))}
+          </nav>
+
+          <div className="space-y-2 border-t border-neon-green/30 pt-4">
+            <button
+              onClick={() => router.push('/')}
+              className="w-full cyber-button text-sm"
+            >
+              🏠 Shop
+            </button>
+            <button
+              onClick={() => router.push('/profile')}
+              className="w-full cyber-button text-sm"
+            >
+              👤 Profile
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-8">
+          {loading ? (
+            <div className="text-center mt-20">
+              <div className="loading mx-auto"></div>
             </div>
-          )}
-
-          {/* Products */}
-          {activeTab === 'products' && (
-            <div>
-              <div className="mb-6">
-                <button
-                  onClick={() => {
-                    setShowProductForm(!showProductForm);
-                    setEditingProduct(null);
-                    setProductForm({
-                      name: '',
-                      description: '',
-                      price: '',
-                      currency: 'USD',
-                      map_link: '',
-                      image_link: '',
-                    });
-                  }}
-                  className="cyber-button"
-                >
-                  {showProductForm ? 'Cancel' : '+ Add Product'}
-                </button>
-              </div>
-
-              {showProductForm && (
-                <div className="cyber-card mb-6">
-                  <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
-                    {editingProduct ? 'Edit Product' : 'Create New Product'}
+          ) : (
+            <>
+              {/* Dashboard */}
+              {activeTab === 'dashboard' && stats && (
+                <div>
+                  <h2 className="text-3xl font-bold mb-6 neon-glow hidden lg:block">
+                    Dashboard
                   </h2>
-                  <form onSubmit={handleProductSubmit} className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block mb-2 text-neon-cyan">
-                          Product Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={productForm.name}
-                          onChange={(e) =>
-                            setProductForm({ ...productForm, name: e.target.value })
-                          }
-                          className="cyber-input"
-                          required
-                        />
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mb-8">
+                    <div className="cyber-card">
+                      <h3 className="text-neon-cyan mb-2 text-sm">Total Users</h3>
+                      <p className="text-3xl font-bold text-neon-green">
+                        {stats.stats.totalUsers}
+                      </p>
+                    </div>
+                    <div className="cyber-card">
+                      <h3 className="text-neon-cyan mb-2 text-sm">Total Products</h3>
+                      <p className="text-3xl font-bold text-neon-green">
+                        {stats.stats.totalProducts}
+                      </p>
+                    </div>
+                    <div className="cyber-card">
+                      <h3 className="text-neon-cyan mb-2 text-sm">Total Orders</h3>
+                      <p className="text-3xl font-bold text-neon-green">
+                        {stats.stats.totalOrders}
+                      </p>
+                    </div>
+                    <div className="cyber-card">
+                      <h3 className="text-neon-cyan mb-2 text-sm">Total Revenue</h3>
+                      <p className="text-3xl font-bold text-neon-green">
+                        €{stats.stats.totalRevenue.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="cyber-card">
+                      <h3 className="text-neon-cyan mb-2 text-sm">Pending Deliveries</h3>
+                      <p className="text-3xl font-bold text-yellow-500">
+                        {stats.stats.pendingDeliveries}
+                      </p>
+                    </div>
+                  </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                  <div className="cyber-card">
+                    <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
+                      Recent Orders
+                    </h2>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-neon-green">
+                            <th className="text-left p-2 text-neon-cyan">Order ID</th>
+                            <th className="text-left p-2 text-neon-cyan">User</th>
+                            <th className="text-left p-2 text-neon-cyan">Amount</th>
+                            <th className="text-left p-2 text-neon-cyan">Status</th>
+                            <th className="text-left p-2 text-neon-cyan">Delivery</th>
+                            <th className="text-left p-2 text-neon-cyan">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {stats.recentOrders.map((order: any) => (
+                            <tr key={order.id} className="border-b border-neon-green/30">
+                              <td className="p-2">{order.id.slice(0, 8)}</td>
+                              <td className="p-2">@{order.username}</td>
+                              <td className="p-2">
+                                €{order.total_amount}
+                              </td>
+                              <td className="p-2">
+                                <span
+                                  className={`font-bold ${
+                                    order.status === 'paid'
+                                      ? 'text-neon-green'
+                                      : order.status === 'pending'
+                                      ? 'text-yellow-500'
+                                      : 'text-red-500'
+                                  }`}
+                                >
+                                  {order.status}
+                                </span>
+                              </td>
+                              <td className="p-2">
+                                <span
+                                  className={`font-bold ${
+                                    order.delivery_status === 'delivered'
+                                      ? 'text-neon-green'
+                                      : 'text-yellow-500'
+                                  }`}
+                                >
+                                  {order.delivery_status}
+                                </span>
+                              </td>
+                              <td className="p-2">
+                                {new Date(order.created_at).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Products */}
+              {activeTab === 'products' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold neon-glow hidden lg:block">
+                      Products
+                    </h2>
+                    <button
+                      onClick={() => {
+                        setShowProductForm(!showProductForm);
+                        setEditingProduct(null);
+                        setProductForm({
+                          name: '',
+                          description: '',
+                          price: '',
+                          currency: 'EUR',
+                          picture_link: '',
+                          quantity: 1,
+                        });
+                      }}
+                      className="cyber-button"
+                    >
+                      {showProductForm ? 'Cancel' : '+ Add Product'}
+                    </button>
+                  </div>
+
+                  {showProductForm && (
+                    <div className="cyber-card mb-6">
+                      <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
+                        {editingProduct ? 'Edit Product' : 'Create New Product'}
+                      </h2>
+                      <form onSubmit={handleProductSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block mb-2 text-neon-cyan">
+                              Product Name *
+                            </label>
+                            <input
+                              type="text"
+                              value={productForm.name}
+                              onChange={(e) =>
+                                setProductForm({ ...productForm, name: e.target.value })
+                              }
+                              className="cyber-input"
+                              required
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <label className="block mb-2 text-neon-cyan">
+                                Price *
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={productForm.price}
+                                onChange={(e) =>
+                                  setProductForm({
+                                    ...productForm,
+                                    price: e.target.value,
+                                  })
+                                }
+                                className="cyber-input"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block mb-2 text-neon-cyan">
+                                Currency
+                              </label>
+                              <select
+                                value={productForm.currency}
+                                onChange={(e) =>
+                                  setProductForm({
+                                    ...productForm,
+                                    currency: e.target.value,
+                                  })
+                                }
+                                className="cyber-input"
+                              >
+                                <option value="EUR">EUR</option>
+                                <option value="USD">USD</option>
+                                <option value="BTC">BTC</option>
+                                <option value="ETH">ETH</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block mb-2 text-neon-cyan">
+                                Quantity *
+                              </label>
+                              <select
+                                value={productForm.quantity}
+                                onChange={(e) =>
+                                  setProductForm({
+                                    ...productForm,
+                                    quantity: parseInt(e.target.value),
+                                  })
+                                }
+                                className="cyber-input"
+                                required
+                              >
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                                <option value="15">15</option>
+                                <option value="20">20</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
                         <div>
                           <label className="block mb-2 text-neon-cyan">
-                            Price *
+                            Description
                           </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={productForm.price}
+                          <textarea
+                            value={productForm.description}
                             onChange={(e) =>
                               setProductForm({
                                 ...productForm,
-                                price: e.target.value,
+                                description: e.target.value,
                               })
                             }
                             className="cyber-input"
+                            rows={3}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block mb-2 text-neon-cyan">
+                            Picture Link (200x200) *
+                          </label>
+                          <input
+                            type="url"
+                            value={productForm.picture_link}
+                            onChange={(e) =>
+                              setProductForm({
+                                ...productForm,
+                                picture_link: e.target.value,
+                              })
+                            }
+                            className="cyber-input"
+                            placeholder="https://example.com/image.jpg"
+                            required
+                          />
+                          {productForm.picture_link && (
+                            <div className="mt-2">
+                              <img
+                                src={productForm.picture_link}
+                                alt="Preview"
+                                className="w-32 h-32 object-cover border border-neon-green"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        <button type="submit" className="cyber-button w-full">
+                          {editingProduct ? 'Update Product' : 'Create Product'}
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  <div className="cyber-card">
+                    <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                      All Products ({products.length})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-neon-green">
+                            <th className="text-left p-2 text-neon-cyan">Picture</th>
+                            <th className="text-left p-2 text-neon-cyan">Name</th>
+                            <th className="text-left p-2 text-neon-cyan">Price</th>
+                            <th className="text-left p-2 text-neon-cyan">Qty</th>
+                            <th className="text-left p-2 text-neon-cyan">Status</th>
+                            <th className="text-left p-2 text-neon-cyan">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {products.map((product) => (
+                            <tr
+                              key={product.id}
+                              className="border-b border-neon-green/30"
+                            >
+                              <td className="p-2">
+                                <img
+                                  src={product.picture_link}
+                                  alt={product.name}
+                                  className="w-12 h-12 object-cover border border-neon-green"
+                                />
+                              </td>
+                              <td className="p-2">{product.name}</td>
+                              <td className="p-2">
+                                €{product.price}
+                              </td>
+                              <td className="p-2">{product.quantity}</td>
+                              <td className="p-2">
+                                <span
+                                  className={
+                                    product.is_active
+                                      ? 'text-neon-green'
+                                      : 'text-red-500'
+                                  }
+                                >
+                                  {product.is_active ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="p-2">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleEditProduct(product)}
+                                    className="text-neon-cyan hover:underline text-sm"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(product.id)}
+                                    className="text-red-500 hover:underline text-sm"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Orders */}
+              {activeTab === 'orders' && (
+                <div>
+                  <h2 className="text-3xl font-bold mb-6 neon-glow hidden lg:block">
+                    Orders
+                  </h2>
+
+                  {/* Filters */}
+                  <div className="cyber-card mb-6">
+                    <h3 className="text-xl font-bold mb-4 text-neon-cyan">Filters</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block mb-2 text-neon-cyan text-sm">
+                          Payment Status
+                        </label>
+                        <select
+                          value={orderStatusFilter}
+                          onChange={(e) => setOrderStatusFilter(e.target.value)}
+                          className="cyber-input"
+                        >
+                          <option value="">All</option>
+                          <option value="pending">Pending</option>
+                          <option value="paid">Paid</option>
+                          <option value="failed">Failed</option>
+                          <option value="expired">Expired</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block mb-2 text-neon-cyan text-sm">
+                          Delivery Status
+                        </label>
+                        <select
+                          value={orderDeliveryFilter}
+                          onChange={(e) => setOrderDeliveryFilter(e.target.value)}
+                          className="cyber-input"
+                        >
+                          <option value="">All</option>
+                          <option value="pending">Pending</option>
+                          <option value="delivered">Delivered</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delivery Form Modal */}
+                  {showDeliveryForm && (
+                    <div className="cyber-card mb-6 border-2 border-neon-green">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        Add Delivery Info - Order #{deliveryForm.orderId.slice(0, 8)}
+                      </h3>
+                      <form onSubmit={handleDeliverySubmit} className="space-y-4">
+                        <div>
+                          <label className="block mb-2 text-neon-cyan">
+                            Map Link (Link 1) *
+                          </label>
+                          <input
+                            type="url"
+                            value={deliveryForm.delivery_map_link}
+                            onChange={(e) =>
+                              setDeliveryForm({
+                                ...deliveryForm,
+                                delivery_map_link: e.target.value,
+                              })
+                            }
+                            className="cyber-input"
+                            placeholder="https://maps.google.com/..."
                             required
                           />
                         </div>
                         <div>
                           <label className="block mb-2 text-neon-cyan">
-                            Currency
+                            Image Link (Link 2) *
                           </label>
-                          <select
-                            value={productForm.currency}
+                          <input
+                            type="url"
+                            value={deliveryForm.delivery_image_link}
                             onChange={(e) =>
-                              setProductForm({
-                                ...productForm,
-                                currency: e.target.value,
+                              setDeliveryForm({
+                                ...deliveryForm,
+                                delivery_image_link: e.target.value,
                               })
                             }
                             className="cyber-input"
+                            placeholder="https://example.com/delivery.jpg"
+                            required
+                          />
+                        </div>
+                        <div className="flex gap-4">
+                          <button type="submit" className="cyber-button flex-1">
+                            ✉️ Изпрати!
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowDeliveryForm(false)}
+                            className="cyber-button flex-1 bg-red-500/20"
                           >
-                            <option value="USD">USD</option>
-                            <option value="EUR">EUR</option>
-                            <option value="BTC">BTC</option>
-                            <option value="ETH">ETH</option>
-                          </select>
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Orders List */}
+                  <div className="cyber-card">
+                    <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                      All Orders ({orders.length})
+                    </h3>
+                    <div className="space-y-4">
+                      {orders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="border border-neon-green/30 rounded p-4 space-y-3"
+                        >
+                          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+                            <div>
+                              <span className="text-neon-cyan font-bold">
+                                Order #{order.id.slice(0, 8)}
+                              </span>
+                              <span className="ml-4 text-neon-green">
+                                @{order.username}
+                              </span>
+                              {order.telegram && (
+                                <span className="ml-2 text-sm text-neon-cyan">
+                                  ({order.telegram})
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <select
+                                value={order.status}
+                                onChange={(e) =>
+                                  handleUpdateOrderStatus(order.id, e.target.value)
+                                }
+                                className="cyber-input w-32 text-sm"
+                              >
+                                <option value="pending">Pending</option>
+                                <option value="paid">Paid</option>
+                                <option value="failed">Failed</option>
+                                <option value="expired">Expired</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-neon-cyan">Total:</span>{' '}
+                              €{order.total_amount}
+                            </div>
+                            <div>
+                              <span className="text-neon-cyan">Date:</span>{' '}
+                              {new Date(order.created_at).toLocaleString()}
+                            </div>
+                            <div>
+                              <span className="text-neon-cyan">Payment:</span>{' '}
+                              <span
+                                className={`font-bold ${
+                                  order.status === 'paid'
+                                    ? 'text-neon-green'
+                                    : order.status === 'pending'
+                                    ? 'text-yellow-500'
+                                    : 'text-red-500'
+                                }`}
+                              >
+                                {order.status}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-neon-cyan">Delivery:</span>{' '}
+                              <span
+                                className={`font-bold ${
+                                  order.delivery_status === 'delivered'
+                                    ? 'text-neon-green'
+                                    : 'text-yellow-500'
+                                }`}
+                              >
+                                {order.delivery_status}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <span className="text-neon-cyan text-sm">Items:</span>
+                            <div className="mt-2 space-y-1">
+                              {order.items.map((item) => (
+                                <div key={item.id} className="flex items-center gap-2 text-sm">
+                                  {item.product_picture && (
+                                    <img
+                                      src={item.product_picture}
+                                      alt={item.product_name}
+                                      className="w-8 h-8 object-cover border border-neon-green"
+                                    />
+                                  )}
+                                  <span>
+                                    {item.product_name} x{item.quantity} (€{item.product_price})
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {order.status === 'paid' && order.delivery_status === 'pending' && (
+                            <button
+                              onClick={() => handleShowDeliveryForm(order)}
+                              className="cyber-button w-full"
+                            >
+                              📦 Add Delivery Info
+                            </button>
+                          )}
+
+                          {order.delivery_status === 'delivered' && order.items[0]?.delivery_map_link && (
+                            <div className="bg-neon-green/10 p-3 rounded text-sm space-y-1">
+                              <div className="text-neon-green font-bold">✓ Delivered</div>
+                              <div>
+                                <a
+                                  href={order.items[0].delivery_map_link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-neon-cyan hover:underline"
+                                >
+                                  📍 View Map
+                                </a>
+                              </div>
+                              <div>
+                                <a
+                                  href={order.items[0].delivery_image_link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-neon-cyan hover:underline"
+                                >
+                                  📷 View Image
+                                </a>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Users */}
+              {activeTab === 'users' && (
+                <div>
+                  <h2 className="text-3xl font-bold mb-6 neon-glow hidden lg:block">
+                    Users
+                  </h2>
+
+                  {/* Search */}
+                  <div className="cyber-card mb-6">
+                    <label className="block mb-2 text-neon-cyan">
+                      Search Users
+                    </label>
+                    <input
+                      type="text"
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="cyber-input"
+                      placeholder="Search by username..."
+                    />
+                  </div>
+
+                  <div className="cyber-card">
+                    <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                      All Users ({users.length})
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-neon-green">
+                            <th className="text-left p-2 text-neon-cyan">Username</th>
+                            <th className="text-left p-2 text-neon-cyan">Telegram</th>
+                            <th className="text-left p-2 text-neon-cyan">Role</th>
+                            <th className="text-left p-2 text-neon-cyan">Orders</th>
+                            <th className="text-left p-2 text-neon-cyan">Total Spent</th>
+                            <th className="text-left p-2 text-neon-cyan">Joined</th>
+                            <th className="text-left p-2 text-neon-cyan">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {users.map((user) => (
+                            <tr key={user.id} className="border-b border-neon-green/30">
+                              <td className="p-2">@{user.username}</td>
+                              <td className="p-2">{user.telegram || '-'}</td>
+                              <td className="p-2">
+                                <span
+                                  className={
+                                    user.is_admin ? 'text-red-500' : 'text-neon-green'
+                                  }
+                                >
+                                  {user.is_admin ? 'ADMIN' : 'USER'}
+                                </span>
+                              </td>
+                              <td className="p-2">{user.total_orders}</td>
+                              <td className="p-2">€{parseFloat(user.total_spent.toString()).toFixed(2)}</td>
+                              <td className="p-2">
+                                {new Date(user.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-2">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() =>
+                                      handleToggleAdmin(user.id, !user.is_admin)
+                                    }
+                                    className="text-neon-cyan hover:underline text-sm"
+                                  >
+                                    {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteUser(user.id, user.username)}
+                                    className="text-red-500 hover:underline text-sm"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Settings */}
+              {activeTab === 'settings' && (
+                <div>
+                  <h2 className="text-3xl font-bold mb-6 neon-glow hidden lg:block">
+                    Settings
+                  </h2>
+                  <div className="space-y-6">
+                    <div className="cyber-card">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        System Information
+                      </h3>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-neon-cyan">Platform:</span>{' '}
+                          <span className="text-neon-green">CryptoShop v2.0</span>
+                        </div>
+                        <div>
+                          <span className="text-neon-cyan">Database:</span>{' '}
+                          <span className="text-neon-green">✓ Connected (PostgreSQL)</span>
+                        </div>
+                        <div>
+                          <span className="text-neon-cyan">Payment Gateway:</span>{' '}
+                          <span className="text-neon-green">OxaPay API v1</span>
+                        </div>
+                        <div>
+                          <span className="text-neon-cyan">Default Currency:</span>{' '}
+                          <span className="text-neon-green">EUR (€)</span>
                         </div>
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block mb-2 text-neon-cyan">
-                        Description
-                      </label>
-                      <textarea
-                        value={productForm.description}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            description: e.target.value,
-                          })
-                        }
-                        className="cyber-input"
-                        rows={3}
-                      />
+                    <div className="cyber-card">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        Environment Variables
+                      </h3>
+                      <p className="text-sm mb-3 text-neon-cyan">
+                        Configure your backend .env file with:
+                      </p>
+                      <ul className="text-sm space-y-1 pl-4">
+                        <li>• OXAPAY_API_KEY (OxaPay merchant API key)</li>
+                        <li>• DATABASE_URL (PostgreSQL connection string)</li>
+                        <li>• JWT_SECRET (Secret for JWT tokens)</li>
+                        <li>• PORT (Default: 3001)</li>
+                      </ul>
                     </div>
 
-                    <div>
-                      <label className="block mb-2 text-neon-cyan">
-                        Map Link (Link 1) *
-                      </label>
-                      <input
-                        type="url"
-                        value={productForm.map_link}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            map_link: e.target.value,
-                          })
-                        }
-                        className="cyber-input"
-                        placeholder="https://maps.google.com/..."
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block mb-2 text-neon-cyan">
-                        Image Link (Link 2) *
-                      </label>
-                      <input
-                        type="url"
-                        value={productForm.image_link}
-                        onChange={(e) =>
-                          setProductForm({
-                            ...productForm,
-                            image_link: e.target.value,
-                          })
-                        }
-                        className="cyber-input"
-                        placeholder="https://example.com/image.jpg"
-                        required
-                      />
-                    </div>
-
-                    <button type="submit" className="cyber-button w-full">
-                      {editingProduct ? 'Update Product' : 'Create Product'}
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              <div className="cyber-card">
-                <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
-                  Products ({products.length})
-                </h2>
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-neon-green">
-                        <th className="text-left p-2 text-neon-cyan">Name</th>
-                        <th className="text-left p-2 text-neon-cyan">Price</th>
-                        <th className="text-left p-2 text-neon-cyan">Description</th>
-                        <th className="text-left p-2 text-neon-cyan">Status</th>
-                        <th className="text-left p-2 text-neon-cyan">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((product) => (
-                        <tr
-                          key={product.id}
-                          className="border-b border-neon-green/30"
-                        >
-                          <td className="p-2">{product.name}</td>
-                          <td className="p-2">
-                            {product.price} {product.currency}
-                          </td>
-                          <td className="p-2 max-w-xs truncate">
-                            {product.description || '-'}
-                          </td>
-                          <td className="p-2">
-                            <span
-                              className={
-                                product.is_active
-                                  ? 'text-neon-green'
-                                  : 'text-red-500'
-                              }
-                            >
-                              {product.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="p-2">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleEditProduct(product)}
-                                className="text-neon-cyan hover:underline"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteProduct(product.id)}
-                                className="text-red-500 hover:underline"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Orders */}
-          {activeTab === 'orders' && (
-            <div className="cyber-card">
-              <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
-                All Orders ({orders.length})
-              </h2>
-              <div className="space-y-4">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="border border-neon-green/30 rounded p-4"
-                  >
-                    <div className="flex justify-between mb-2">
-                      <div>
-                        <span className="text-neon-cyan">
-                          Order #{order.id.slice(0, 8)}
-                        </span>
-                        <span className="ml-4 text-neon-green">
-                          @{order.username}
-                        </span>
+                    <div className="cyber-card">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        Webhook Configuration
+                      </h3>
+                      <div className="text-sm space-y-2">
+                        <div>
+                          <span className="text-neon-cyan">OxaPay Webhook URL:</span>
+                        </div>
+                        <code className="block p-2 bg-neon-green/10 text-neon-green rounded">
+                          {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/webhook/oxapay
+                        </code>
+                        <p className="text-neon-cyan">
+                          Add this URL to your OxaPay dashboard for payment notifications.
+                        </p>
                       </div>
-                      <select
-                        value={order.status}
-                        onChange={(e) =>
-                          handleUpdateOrderStatus(order.id, e.target.value)
-                        }
-                        className="cyber-input w-32"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="paid">Paid</option>
-                        <option value="failed">Failed</option>
-                        <option value="expired">Expired</option>
-                      </select>
                     </div>
-                    <div className="text-sm space-y-1">
-                      <div>
-                        <span className="text-neon-cyan">Total:</span>{' '}
-                        {order.total_amount} {order.currency}
-                      </div>
-                      <div>
-                        <span className="text-neon-cyan">Date:</span>{' '}
-                        {new Date(order.created_at).toLocaleString()}
-                      </div>
-                      <div>
-                        <span className="text-neon-cyan">Items:</span>{' '}
-                        {order.items
-                          .map((item) => `${item.product_name} x${item.quantity}`)
-                          .join(', ')}
+
+                    <div className="cyber-card">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        Security Checklist
+                      </h3>
+                      <ul className="text-sm space-y-2">
+                        <li className="flex items-start gap-2">
+                          <span className="text-neon-green">✓</span>
+                          <span>JWT authentication enabled</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-neon-green">✓</span>
+                          <span>Password hashing with bcrypt</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-neon-green">✓</span>
+                          <span>CORS protection configured</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-neon-green">✓</span>
+                          <span>Admin-only routes protected</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-neon-green">✓</span>
+                          <span>OxaPay HMAC signature verification</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-neon-green">✓</span>
+                          <span>Delivery info only visible after admin confirmation</span>
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="cyber-card">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        Database Management
+                      </h3>
+                      <div className="text-sm space-y-2">
+                        <p className="text-neon-cyan">To run migrations:</p>
+                        <code className="block p-2 bg-neon-green/10 text-neon-green rounded">
+                          psql -U your_user -d your_db -f database/migration_v2.sql
+                        </code>
+                        <p className="text-neon-cyan mt-4">To backup database:</p>
+                        <code className="block p-2 bg-neon-green/10 text-neon-green rounded">
+                          pg_dump -U your_user your_db {'>'} backup.sql
+                        </code>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Users */}
-          {activeTab === 'users' && (
-            <div className="cyber-card">
-              <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
-                All Users ({users.length})
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-neon-green">
-                      <th className="text-left p-2 text-neon-cyan">Username</th>
-                      <th className="text-left p-2 text-neon-cyan">Telegram</th>
-                      <th className="text-left p-2 text-neon-cyan">Role</th>
-                      <th className="text-left p-2 text-neon-cyan">Joined</th>
-                      <th className="text-left p-2 text-neon-cyan">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr key={user.id} className="border-b border-neon-green/30">
-                        <td className="p-2">@{user.username}</td>
-                        <td className="p-2">{user.telegram || '-'}</td>
-                        <td className="p-2">
-                          <span
-                            className={
-                              user.is_admin ? 'text-red-500' : 'text-neon-green'
-                            }
-                          >
-                            {user.is_admin ? 'ADMIN' : 'USER'}
-                          </span>
-                        </td>
-                        <td className="p-2">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="p-2">
-                          <button
-                            onClick={() =>
-                              handleToggleAdmin(user.id, !user.is_admin)
-                            }
-                            className="text-neon-cyan hover:underline"
-                          >
-                            {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Settings */}
-          {activeTab === 'settings' && (
-            <div className="cyber-card">
-              <h2 className="text-2xl font-bold mb-4 text-neon-cyan">Settings</h2>
-              <div className="space-y-4">
-                <div className="p-4 border border-neon-green/30 rounded">
-                  <h3 className="text-neon-cyan font-bold mb-2">
-                    Environment Variables
-                  </h3>
-                  <p className="text-sm mb-2">
-                    Configure your backend .env file with:
-                  </p>
-                  <ul className="text-sm space-y-1 pl-4">
-                    <li>• OXAPAY_API_KEY</li>
-                    <li>• OXAPAY_MERCHANT_ID</li>
-                    <li>• DATABASE_URL</li>
-                    <li>• JWT_SECRET</li>
-                  </ul>
                 </div>
-
-                <div className="p-4 border border-neon-green/30 rounded">
-                  <h3 className="text-neon-cyan font-bold mb-2">
-                    Payment Provider
-                  </h3>
-                  <p className="text-sm">
-                    Currently using: <span className="text-neon-green">OxaPay</span>
-                  </p>
-                  <p className="text-sm mt-2">
-                    Webhook URL:{' '}
-                    <code className="text-neon-green">
-                      {process.env.NEXT_PUBLIC_API_URL}/api/webhook/oxapay
-                    </code>
-                  </p>
-                </div>
-
-                <div className="p-4 border border-neon-green/30 rounded">
-                  <h3 className="text-neon-cyan font-bold mb-2">
-                    Database Status
-                  </h3>
-                  <p className="text-neon-green">✓ Connected</p>
-                </div>
-              </div>
-            </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </main>
+      </div>
     </div>
   );
 }
