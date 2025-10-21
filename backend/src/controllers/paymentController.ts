@@ -58,8 +58,15 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
     }
 
     // Create OxaPay invoice
-    const callbackUrl = `${process.env.OXAPAY_CALLBACK_URL}?orderId=${order.id}`;
+    // Build callback URL - should point to our webhook endpoint
+    const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const callbackUrl = `${baseUrl}/api/webhook/oxapay`;
+
+    console.log('Creating invoice:', { totalAmount, currency, orderId: order.id, callbackUrl });
+
     const invoice = await createInvoice(totalAmount, currency, order.id, callbackUrl);
+
+    console.log('Invoice created:', invoice);
 
     // Update order with payment info
     await query(
@@ -74,18 +81,24 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
       amount: totalAmount,
       currency: currency
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Checkout error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error details:', error.response?.data || error.message);
+    res.status(500).json({
+      error: 'Failed to create payment',
+      details: error.message
+    });
   }
 };
 
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
-    // OxaPay webhook sends: track_id, order_id, status, amount, currency, etc.
-    const { track_id, order_id, status } = req.body;
+    // OxaPay v1 webhook sends: trackId, orderid, status, amount, payAmount, currency, etc.
+    const { trackId, orderid, status } = req.body;
 
-    console.log('OxaPay Webhook received:', req.body);
+    console.log('=== OxaPay Webhook received ===');
+    console.log('Full payload:', JSON.stringify(req.body, null, 2));
+    console.log('Headers:', req.headers);
 
     // Verify HMAC signature for security (optional but recommended)
     const hmacHeader = req.headers['hmac'] as string;
@@ -99,26 +112,36 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
       if (hmacHeader !== expectedHmac) {
         console.error('Invalid HMAC signature');
+        console.error('Expected:', expectedHmac);
+        console.error('Received:', hmacHeader);
         return res.status(403).send('ok'); // Still return 'ok' to avoid retries
       }
     }
 
+    // OxaPay v1 uses 'orderid' (lowercase)
+    const order_id = orderid;
+
     if (!order_id) {
-      console.error('No order_id in webhook');
+      console.error('No orderid in webhook');
       return res.status(200).send('ok'); // Return 'ok' to avoid retries
     }
 
     // Map OxaPay status to our status
+    // OxaPay statuses: Waiting, Confirming, Paid, Expired, Failed
     let orderStatus = 'pending';
-    if (status === 'paid' || status === 'Paid') {
+    const statusLower = status ? status.toLowerCase() : '';
+
+    if (statusLower === 'paid' || statusLower === 'confirming') {
       orderStatus = 'paid';
-    } else if (status === 'expired' || status === 'Expired') {
+    } else if (statusLower === 'expired') {
       orderStatus = 'expired';
-    } else if (status === 'failed' || status === 'Failed') {
+    } else if (statusLower === 'failed') {
       orderStatus = 'failed';
-    } else if (status === 'paying' || status === 'Paying') {
-      orderStatus = 'pending'; // Still processing
+    } else if (statusLower === 'waiting') {
+      orderStatus = 'pending';
     }
+
+    console.log(`Updating order ${order_id} to status: ${orderStatus}`);
 
     // Update order status
     const result = await query(
@@ -127,9 +150,9 @@ export const handleWebhook = async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
-      console.error(`Order ${order_id} not found`);
+      console.error(`Order ${order_id} not found in database`);
     } else {
-      console.log(`Order ${order_id} updated to status: ${orderStatus}`);
+      console.log(`✓ Order ${order_id} successfully updated to status: ${orderStatus}`);
     }
 
     // IMPORTANT: OxaPay requires response to be "ok" with HTTP 200
