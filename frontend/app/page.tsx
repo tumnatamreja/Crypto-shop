@@ -10,7 +10,8 @@ interface Product {
   description: string;
   price: number;
   currency: string;
-  image_link: string;
+  picture_link: string;
+  quantity: number;
 }
 
 export default function Home() {
@@ -160,7 +161,7 @@ export default function Home() {
           products.map((product) => (
             <div key={product.id} className="cyber-card">
               <img
-                src={product.image_link}
+                src={product.picture_link}
                 alt={product.name}
                 className="w-full h-48 object-cover rounded mb-4 border border-neon-green"
               />
@@ -170,7 +171,7 @@ export default function Home() {
               <p className="text-sm mb-4 opacity-80">{product.description}</p>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-2xl font-bold">
-                  {product.price} {product.currency}
+                  €{product.price}
                 </span>
               </div>
               <div className="flex gap-2">
@@ -221,7 +222,7 @@ export default function Home() {
                     {p.name} x {cart[p.id]}
                   </span>
                   <span className="text-neon-cyan">
-                    {(p.price * cart[p.id]).toFixed(2)} {p.currency}
+                    €{(p.price * cart[p.id]).toFixed(2)}
                   </span>
                 </div>
               ))}
@@ -229,7 +230,7 @@ export default function Home() {
           <div className="border-t border-neon-green pt-4 mb-4">
             <div className="flex justify-between text-xl font-bold">
               <span>Total:</span>
-              <span className="text-neon-cyan">{cartTotal.toFixed(2)} USD</span>
+              <span className="text-neon-cyan">€{cartTotal.toFixed(2)}</span>
             </div>
           </div>
           <button

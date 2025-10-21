@@ -1,4 +1,4 @@
--- CryptoShop Database Schema
+-- CryptoShop Database Schema v2
 -- PostgreSQL 14+
 
 -- Enable UUID extension
@@ -15,43 +15,47 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Products table
+-- Products table (UPDATED)
 CREATE TABLE products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price DECIMAL(10, 2) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'USD',
-    map_link VARCHAR(500) NOT NULL,
-    image_link VARCHAR(500) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'EUR',
+    picture_link VARCHAR(500) NOT NULL,
+    quantity INTEGER DEFAULT 1,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Orders table
+-- Orders table (UPDATED)
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     total_amount DECIMAL(10, 2) NOT NULL,
-    currency VARCHAR(10) DEFAULT 'USD',
+    currency VARCHAR(10) DEFAULT 'EUR',
     status VARCHAR(50) DEFAULT 'pending', -- pending, paid, failed, expired
     payment_id VARCHAR(255),
     payment_url TEXT,
+    delivery_status VARCHAR(50) DEFAULT 'pending', -- pending, delivered
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Order items table
+-- Order items table (UPDATED)
 CREATE TABLE order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
     product_id UUID REFERENCES products(id) ON DELETE SET NULL,
     product_name VARCHAR(255) NOT NULL,
+    product_picture VARCHAR(500),
     product_price DECIMAL(10, 2) NOT NULL,
-    map_link VARCHAR(500) NOT NULL,
-    image_link VARCHAR(500) NOT NULL,
     quantity INTEGER DEFAULT 1,
+    -- Delivery info (added by admin after payment)
+    delivery_map_link VARCHAR(500),
+    delivery_image_link VARCHAR(500),
+    delivered_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -59,6 +63,7 @@ CREATE TABLE order_items (
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_orders_user_id ON orders(user_id);
 CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_orders_delivery_status ON orders(delivery_status);
 CREATE INDEX idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX idx_products_is_active ON products(is_active);
 

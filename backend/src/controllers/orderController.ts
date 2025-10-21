@@ -10,10 +10,12 @@ export const getUserOrders = async (req: AuthRequest, res: Response) => {
           json_build_object(
             'id', oi.id,
             'product_name', oi.product_name,
+            'product_picture', oi.product_picture,
             'product_price', oi.product_price,
             'quantity', oi.quantity,
-            'map_link', CASE WHEN o.status = 'paid' THEN oi.map_link ELSE NULL END,
-            'image_link', CASE WHEN o.status = 'paid' THEN oi.image_link ELSE NULL END
+            'delivery_map_link', CASE WHEN o.delivery_status = 'delivered' THEN oi.delivery_map_link ELSE NULL END,
+            'delivery_image_link', CASE WHEN o.delivery_status = 'delivered' THEN oi.delivery_image_link ELSE NULL END,
+            'delivered_at', oi.delivered_at
           )
         ) as items
       FROM orders o
@@ -41,10 +43,12 @@ export const getOrderById = async (req: AuthRequest, res: Response) => {
           json_build_object(
             'id', oi.id,
             'product_name', oi.product_name,
+            'product_picture', oi.product_picture,
             'product_price', oi.product_price,
             'quantity', oi.quantity,
-            'map_link', CASE WHEN o.status = 'paid' THEN oi.map_link ELSE NULL END,
-            'image_link', CASE WHEN o.status = 'paid' THEN oi.image_link ELSE NULL END
+            'delivery_map_link', CASE WHEN o.delivery_status = 'delivered' THEN oi.delivery_map_link ELSE NULL END,
+            'delivery_image_link', CASE WHEN o.delivery_status = 'delivered' THEN oi.delivery_image_link ELSE NULL END,
+            'delivered_at', oi.delivered_at
           )
         ) as items
       FROM orders o

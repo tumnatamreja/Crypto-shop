@@ -9,13 +9,16 @@ interface Order {
   total_amount: number;
   currency: string;
   status: string;
+  delivery_status: string;
   created_at: string;
   items: Array<{
     product_name: string;
+    product_picture?: string;
     product_price: number;
     quantity: number;
-    map_link?: string;
-    image_link?: string;
+    delivery_map_link?: string;
+    delivery_image_link?: string;
+    delivered_at?: string;
   }>;
 }
 
@@ -179,22 +182,25 @@ export default function Profile() {
                               </span>
                             </div>
 
-                            {/* Show links only for paid orders */}
-                            {order.status === 'paid' &&
-                              item.map_link &&
-                              item.image_link && (
-                                <div className="mt-2 space-y-1 text-sm">
+                            {/* Show links only for delivered orders */}
+                            {order.delivery_status === 'delivered' &&
+                              item.delivery_map_link &&
+                              item.delivery_image_link && (
+                                <div className="mt-2 space-y-1 text-sm bg-neon-green/10 p-2 rounded">
+                                  <div className="text-neon-green font-bold mb-1">
+                                    ✓ Delivered {item.delivered_at && `on ${new Date(item.delivered_at).toLocaleDateString()}`}
+                                  </div>
                                   <div>
                                     <span className="text-neon-cyan">
                                       Map Link:
                                     </span>{' '}
                                     <a
-                                      href={item.map_link}
+                                      href={item.delivery_map_link}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-neon-green hover:underline"
+                                      className="text-neon-green hover:underline break-all"
                                     >
-                                      {item.map_link}
+                                      {item.delivery_map_link}
                                     </a>
                                   </div>
                                   <div>
@@ -202,12 +208,12 @@ export default function Profile() {
                                       Image Link:
                                     </span>{' '}
                                     <a
-                                      href={item.image_link}
+                                      href={item.delivery_image_link}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-neon-green hover:underline"
+                                      className="text-neon-green hover:underline break-all"
                                     >
-                                      {item.image_link}
+                                      {item.delivery_image_link}
                                     </a>
                                   </div>
                                 </div>

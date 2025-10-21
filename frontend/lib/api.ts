@@ -72,11 +72,18 @@ export const getAdminOrders = () =>
 export const updateOrderStatus = (id: string, status: string) =>
   api.put(`/api/admin/orders/${id}`, { status });
 
+// Admin - Delivery
+export const updateDeliveryInfo = (orderId: string, delivery_map_link: string, delivery_image_link: string) =>
+  api.put(`/api/admin/orders/${orderId}/deliver`, { delivery_map_link, delivery_image_link });
+
 // Admin - Users
-export const getAdminUsers = () =>
-  api.get('/api/admin/users');
+export const getAdminUsers = (search?: string) =>
+  api.get('/api/admin/users', { params: { search } });
 
 export const updateUserAdmin = (id: string, is_admin: boolean) =>
   api.put(`/api/admin/users/${id}`, { is_admin });
+
+export const deleteUser = (id: string) =>
+  api.delete(`/api/admin/users/${id}`);
 
 export default api;

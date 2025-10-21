@@ -24,26 +24,27 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
 
     // Calculate total
     let totalAmount = 0;
+    let currency = 'EUR';
     const orderItems = items.map((item: any) => {
       const product = products.rows.find(p => p.id === item.productId);
       if (!product) throw new Error('Product not found');
 
       totalAmount += parseFloat(product.price) * (item.quantity || 1);
+      currency = product.currency || 'EUR';
 
       return {
         product_id: product.id,
         product_name: product.name,
+        product_picture: product.picture_link,
         product_price: product.price,
-        map_link: product.map_link,
-        image_link: product.image_link,
         quantity: item.quantity || 1
       };
     });
 
     // Create order
     const orderResult = await query(
-      'INSERT INTO orders (user_id, total_amount, currency, status) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.user!.id, totalAmount, 'USD', 'pending']
+      'INSERT INTO orders (user_id, total_amount, currency, status, delivery_status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [req.user!.id, totalAmount, currency, 'pending', 'pending']
     );
 
     const order = orderResult.rows[0];
@@ -51,14 +52,14 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
     // Create order items
     for (const item of orderItems) {
       await query(
-        'INSERT INTO order_items (order_id, product_id, product_name, product_price, map_link, image_link, quantity) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [order.id, item.product_id, item.product_name, item.product_price, item.map_link, item.image_link, item.quantity]
+        'INSERT INTO order_items (order_id, product_id, product_name, product_picture, product_price, quantity) VALUES ($1, $2, $3, $4, $5, $6)',
+        [order.id, item.product_id, item.product_name, item.product_picture, item.product_price, item.quantity]
       );
     }
 
     // Create OxaPay invoice
     const callbackUrl = `${process.env.OXAPAY_CALLBACK_URL}?orderId=${order.id}`;
-    const invoice = await createInvoice(totalAmount, 'USD', order.id, callbackUrl);
+    const invoice = await createInvoice(totalAmount, currency, order.id, callbackUrl);
 
     // Update order with payment info
     await query(
@@ -71,7 +72,7 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
       paymentUrl: invoice.payLink,
       trackId: invoice.trackId,
       amount: totalAmount,
-      currency: 'USD'
+      currency: currency
     });
   } catch (error) {
     console.error('Checkout error:', error);
