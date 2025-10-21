@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../types';
-import { createInvoice, createStaticAddress } from '../services/oxapayService';
+import { createStaticAddress } from '../services/oxapayService';
 
 export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
@@ -125,27 +125,11 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
       );
     }
 
-    // Create OxaPay invoice
-    // Build callback URL - should point to our webhook endpoint
-    const baseUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
-    const callbackUrl = `${baseUrl}/api/webhook/oxapay`;
-
-    console.log('Creating invoice:', { totalAmount, currency, orderId: order.id, callbackUrl });
-
-    const invoice = await createInvoice(totalAmount, currency, order.id, callbackUrl);
-
-    console.log('Invoice created:', invoice);
-
-    // Update order with payment info
-    await query(
-      'UPDATE orders SET payment_id = $1, payment_url = $2 WHERE id = $3',
-      [invoice.trackId.toString(), invoice.payLink, order.id]
-    );
+    // No need to create OxaPay invoice here - user will select currency on payment page
+    console.log('Order created successfully:', order.id);
 
     res.json({
       orderId: order.id,
-      paymentUrl: invoice.payLink,
-      trackId: invoice.trackId,
       amount: totalAmount,
       subtotal: subtotal,
       discount: discountAmount,
