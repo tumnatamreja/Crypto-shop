@@ -150,7 +150,33 @@ export default function Home() {
       // Redirect to our white-label payment page instead of OxaPay
       router.push(`/payment/${response.data.orderId}`);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Checkout failed');
+      const errorData = error.response?.data;
+
+      if (errorData?.banned) {
+        // User is banned
+        const remainingMinutes = errorData.remainingMinutes || 0;
+        const hours = Math.floor(remainingMinutes / 60);
+        const minutes = remainingMinutes % 60;
+        const timeStr = hours > 0 ? `${hours}h ${minutes}min` : `${minutes} minutes`;
+
+        alert(
+          `🚫 ACCOUNT TEMPORARILY BANNED\n\n` +
+          `Your account has been temporarily banned for spam protection.\n\n` +
+          `Remaining time: ${timeStr}\n\n` +
+          `Reason: ${errorData.message || 'Too many orders in a short time'}`
+        );
+      } else if (errorData?.error === 'Active order exists') {
+        // Already has pending order
+        alert(
+          `⚠️ ACTIVE ORDER EXISTS\n\n` +
+          `You already have a pending order.\n` +
+          `Please complete or wait for it to be processed before creating a new one.\n\n` +
+          `Check your profile to view your active orders.`
+        );
+      } else {
+        // Generic error
+        alert(errorData?.message || errorData?.error || 'Checkout failed');
+      }
     } finally {
       setCheckoutLoading(false);
     }

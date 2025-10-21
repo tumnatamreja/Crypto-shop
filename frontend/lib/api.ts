@@ -104,6 +104,12 @@ export const updateUserAdmin = (id: string, is_admin: boolean) =>
 export const deleteUser = (id: string) =>
   api.delete(`/api/admin/users/${id}`);
 
+export const banUser = (id: string, hours?: number) =>
+  api.post(`/api/admin/users/${id}/ban`, { hours });
+
+export const unbanUser = (id: string) =>
+  api.post(`/api/admin/users/${id}/unban`);
+
 // Chat
 export const sendChatMessage = (message: string, recipientUserId?: string) =>
   api.post('/api/chat/send', { message, recipientUserId });

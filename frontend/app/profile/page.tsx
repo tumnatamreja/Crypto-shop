@@ -227,6 +227,21 @@ export default function Profile() {
             </div>
           </div>
 
+          {/* Ban Warning */}
+          {user?.banned_until && new Date(user.banned_until) > new Date() && (
+            <div className="mt-4 p-4 bg-red-500/20 border border-red-500 rounded-lg">
+              <div className="text-red-500 font-bold mb-2 flex items-center gap-2">
+                <span>🚫</span> ACCOUNT BANNED
+              </div>
+              <div className="text-sm text-red-400">
+                Your account is temporarily banned for spam protection.
+              </div>
+              <div className="text-xs text-red-300 mt-2">
+                Until: {new Date(user.banned_until).toLocaleString()}
+              </div>
+            </div>
+          )}
+
           {/* Chat Toggle Button */}
           <button
             onClick={handleOpenChat}
