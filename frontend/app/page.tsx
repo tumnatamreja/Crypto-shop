@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProducts, createCheckout, validatePromoCode, getProductPriceTiers } from '@/lib/api';
+import { getProducts } from '@/lib/api';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 interface Product {
   id: string;
@@ -14,63 +16,19 @@ interface Product {
   quantity: number;
 }
 
-interface PriceTier {
-  id: string;
-  product_id: string;
-  quantity: number;
-  price: number;
-}
-
-const CITIES = ['София', 'Пловдив'];
-const DISTRICTS = {
-  'Пловдив': ['Център', 'Каршияка', 'Мл. Хълм', 'Смирненски', 'Мараша'],
-  'София': ['Дианабад', 'Младост 1', 'Студентски град', 'Белите брези', 'Стрелбище', 'Гоце Делчев', 'Бъкстон', 'Манастирски ливади', 'Борово', 'Красна поляна', 'Център']
-};
-const QUANTITY_OPTIONS = [1, 2, 3, 5, 10, 20];
-
 export default function Home() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
-  const [priceTiers, setPriceTiers] = useState<{ [key: string]: PriceTier[] }>({});
-  const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
-
-  // Order form fields
-  const [city, setCity] = useState<string>('');
-  const [district, setDistrict] = useState<string>('');
-  const [promoCode, setPromoCode] = useState<string>('');
-  const [promoDiscount, setPromoDiscount] = useState<number>(0);
-  const [promoValid, setPromoValid] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    if (token && userData) {
-      setUser(JSON.parse(userData));
-    }
     loadProducts();
   }, []);
 
   const loadProducts = async () => {
     try {
       const response = await getProducts();
-      const productsData = response.data.products;
-      setProducts(productsData);
-
-      // Load price tiers for each product
-      const tiersData: { [key: string]: PriceTier[] } = {};
-      for (const product of productsData) {
-        try {
-          const tiersResponse = await getProductPriceTiers(product.id);
-          tiersData[product.id] = tiersResponse.data.priceTiers || [];
-        } catch (error) {
-          console.error(`Error loading price tiers for ${product.id}:`, error);
-          tiersData[product.id] = [];
-        }
-      }
-      setPriceTiers(tiersData);
+      setProducts(response.data.products);
     } catch (error) {
       console.error('Error loading products:', error);
     } finally {
@@ -78,395 +36,188 @@ export default function Home() {
     }
   };
 
-  const setCartQuantity = (productId: string, quantity: number) => {
-    if (quantity === 0) {
-      const newCart = { ...cart };
-      delete newCart[productId];
-      setCart(newCart);
-    } else {
-      setCart({ ...cart, [productId]: quantity });
-    }
-  };
-
-  const getProductPrice = (productId: string, quantity: number): number => {
-    const product = products.find(p => p.id === productId);
-    if (!product) return 0;
-
-    const tiers = priceTiers[productId] || [];
-    const tier = tiers.find(t => t.quantity === quantity);
-    return tier ? parseFloat(tier.price.toString()) : parseFloat(product.price.toString());
-  };
-
-  const handleCityChange = (newCity: string) => {
-    setCity(newCity);
-    setDistrict(''); // Reset district when city changes
-  };
-
-  const handlePromoCodeValidation = async () => {
-    if (!promoCode.trim()) {
-      setPromoValid(null);
-      setPromoDiscount(0);
-      return;
-    }
-
-    try {
-      const response = await validatePromoCode(promoCode, cartSubtotal);
-      if (response.data.valid) {
-        setPromoValid(true);
-        setPromoDiscount(response.data.discountAmount);
-      }
-    } catch (error: any) {
-      setPromoValid(false);
-      setPromoDiscount(0);
-      alert(error.response?.data?.error || 'Invalid promo code');
-    }
-  };
-
-  const handleCheckout = async () => {
+  const handleProductClick = (productId: string) => {
     const token = localStorage.getItem('token');
     if (!token) {
       router.push('/login');
       return;
     }
-
-    const items = Object.entries(cart).map(([productId, quantity]) => ({
-      productId,
-      quantity,
-    }));
-
-    if (items.length === 0) {
-      alert('Cart is empty');
-      return;
-    }
-
-    if (!city || !district) {
-      alert('Please select both city and district');
-      return;
-    }
-
-    setCheckoutLoading(true);
-    try {
-      const response = await createCheckout(items, city, district, promoCode || undefined);
-      // Redirect to our white-label payment page instead of OxaPay
-      router.push(`/payment/${response.data.orderId}`);
-    } catch (error: any) {
-      const errorData = error.response?.data;
-
-      if (errorData?.banned) {
-        // User is banned
-        const remainingMinutes = errorData.remainingMinutes || 0;
-        const hours = Math.floor(remainingMinutes / 60);
-        const minutes = remainingMinutes % 60;
-        const timeStr = hours > 0 ? `${hours}h ${minutes}min` : `${minutes} minutes`;
-
-        alert(
-          `🚫 ACCOUNT TEMPORARILY BANNED\n\n` +
-          `Your account has been temporarily banned for spam protection.\n\n` +
-          `Remaining time: ${timeStr}\n\n` +
-          `Reason: ${errorData.message || 'Too many orders in a short time'}`
-        );
-      } else if (errorData?.error === 'Active order exists') {
-        // Already has pending order
-        alert(
-          `⚠️ ACTIVE ORDER EXISTS\n\n` +
-          `You already have a pending order.\n` +
-          `Please complete or wait for it to be processed before creating a new one.\n\n` +
-          `Check your profile to view your active orders.`
-        );
-      } else {
-        // Generic error
-        alert(errorData?.message || errorData?.error || 'Checkout failed');
-      }
-    } finally {
-      setCheckoutLoading(false);
-    }
+    // Redirect to a product details or order page
+    router.push(`/order/${productId}`);
   };
-
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setUser(null);
-    router.push('/');
-  };
-
-  const cartSubtotal = Object.entries(cart).reduce((sum, [productId, quantity]) => {
-    return sum + getProductPrice(productId, quantity) * quantity;
-  }, 0);
-
-  const cartTotal = cartSubtotal - promoDiscount;
-  const cartCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
   return (
-    <div className="min-h-screen p-8">
-      {/* Header */}
-      <header className="cyber-card mb-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold neon-glow">[ CRYPTOSHOP ]</h1>
-          <div className="flex gap-4">
-            {user ? (
-              <>
-                <span className="text-neon-cyan">
-                  {user.is_admin && '[ADMIN] '}@{user.username}
-                </span>
-                {user.is_admin && (
-                  <button
-                    onClick={() => router.push('/admin')}
-                    className="cyber-button"
-                  >
-                    Admin Panel
-                  </button>
-                )}
-                <button
-                  onClick={() => router.push('/profile')}
-                  className="cyber-button"
-                >
-                  Profile
-                </button>
-                <button onClick={logout} className="cyber-button">
-                  Logout
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => router.push('/login')}
-                  className="cyber-button"
-                >
-                  Login
-                </button>
-                <button
-                  onClick={() => router.push('/register')}
-                  className="cyber-button"
-                >
-                  Register
-                </button>
-              </>
-            )}
+    <div className="min-h-screen flex flex-col">
+      <Header />
+
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 py-20">
+        <div className="cyber-card text-center max-w-4xl mx-auto">
+          <h1 className="text-5xl md:text-6xl font-bold mb-6">
+            <span className="text-gradient">SinHuella Corp.</span>
+          </h1>
+          <p className="text-3xl md:text-4xl font-bold text-neon-red mb-4 neon-glow">
+            БЪРЗО, ЛЕСНО, АНОНИМНО!
+          </p>
+          <p className="text-xl text-gray-300 mb-8">
+            Вашият надежден анонимен магазин за крипто плащания
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="#products" className="cyber-button">
+              Разгледай Продукти
+            </a>
+            <button
+              onClick={() => router.push('/register')}
+              className="cyber-button"
+            >
+              Създай Акаунт
+            </button>
           </div>
         </div>
-      </header>
+      </section>
 
-      {/* Products */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+      {/* Features Section */}
+      <section className="container mx-auto px-4 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div className="cyber-card text-center">
+            <div className="text-4xl mb-4">⚡</div>
+            <h3 className="text-xl font-bold text-neon-red mb-2">Бързо</h3>
+            <p className="text-gray-400 text-sm">
+              Моментални транзакции и бърза обработка на поръчки
+            </p>
+          </div>
+          <div className="cyber-card text-center">
+            <div className="text-4xl mb-4">🔒</div>
+            <h3 className="text-xl font-bold text-neon-red mb-2">Анонимно</h3>
+            <p className="text-gray-400 text-sm">
+              Пълна анонимност и сигурност на вашите данни
+            </p>
+          </div>
+          <div className="cyber-card text-center">
+            <div className="text-4xl mb-4">💎</div>
+            <h3 className="text-xl font-bold text-neon-red mb-2">Качество</h3>
+            <p className="text-gray-400 text-sm">
+              Само най-качествени продукти и услуги
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Products Section */}
+      <section id="products" className="container mx-auto px-4 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold text-gradient mb-4">Наши Продукти</h2>
+          <p className="text-gray-400">
+            Разгледайте нашата селекция от качествени продукти
+          </p>
+        </div>
+
         {loading ? (
-          <div className="col-span-full text-center">
-            <div className="loading mx-auto"></div>
+          <div className="flex justify-center py-20">
+            <div className="loading"></div>
           </div>
         ) : products.length === 0 ? (
-          <div className="col-span-full text-center text-neon-cyan">
-            No products available
+          <div className="cyber-card text-center py-12">
+            <p className="text-gray-400">Няма налични продукти в момента</p>
           </div>
         ) : (
-          products.map((product) => {
-            const currentQuantity = cart[product.id] || 0;
-            const currentPrice = currentQuantity > 0 ? getProductPrice(product.id, currentQuantity) : product.price;
-
-            return (
-              <div key={product.id} className="product-card">
-                <img
-                  src={product.picture_link}
-                  alt={product.name}
-                  className="w-full h-48 object-cover rounded-t-2xl"
-                />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 max-w-7xl mx-auto">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="product-card cursor-pointer"
+                onClick={() => handleProductClick(product.id)}
+              >
+                <div className="aspect-square overflow-hidden">
+                  <img
+                    src={product.picture_link}
+                    alt={product.name}
+                    className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+                  />
+                </div>
                 <div className="p-6">
-                  <h3 className="text-2xl font-bold mb-2 text-neon-cyan">
+                  <h3 className="text-xl font-bold text-neon-red mb-2 truncate">
                     {product.name}
                   </h3>
-                  <p className="text-sm mb-4 opacity-80">{product.description}</p>
-
-                  <div className="mb-4">
-                    <div className="price-tag">
-                      €{currentPrice.toFixed(2)}
+                  <p className="text-sm text-gray-400 mb-4 line-clamp-2">
+                    {product.description}
+                  </p>
+                  <div className="flex items-center justify-between">
+                    <div className="price-tag text-xl">
+                      €{parseFloat(product.price.toString()).toFixed(2)}
                     </div>
-                    {priceTiers[product.id] && priceTiers[product.id].length > 0 && (
-                      <div className="text-xs text-neon-cyan/70 mt-1">
-                        Special pricing available
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <label className="block">
-                      <span className="text-sm text-neon-cyan mb-2 block">Quantity:</span>
-                      <select
-                        value={currentQuantity}
-                        onChange={(e) => setCartQuantity(product.id, parseInt(e.target.value))}
-                        className="cyber-input w-full"
-                      >
-                        <option value="0">Select quantity</option>
-                        {QUANTITY_OPTIONS.map(qty => {
-                          const price = getProductPrice(product.id, qty);
-                          return (
-                            <option key={qty} value={qty}>
-                              {qty} {qty === 1 ? 'unit' : 'units'} - €{price.toFixed(2)} each
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </label>
-
-                    {currentQuantity > 0 && (
-                      <div className="p-3 bg-neon-green/10 border border-neon-green rounded-lg">
-                        <div className="text-sm text-neon-cyan">
-                          Subtotal: <span className="font-bold text-neon-green">
-                            €{(currentPrice * currentQuantity).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                    <button className="text-neon-red hover:text-neon-orange transition-colors font-bold text-sm">
+                      Купи сега →
+                    </button>
                   </div>
                 </div>
               </div>
-            );
-          })
+            ))}
+          </div>
         )}
-      </div>
+      </section>
 
-      {/* Cart */}
-      {cartCount > 0 && (
-        <div className="fixed bottom-8 right-8 cyber-card max-w-md max-h-[80vh] overflow-y-auto">
-          <h3 className="text-2xl font-bold mb-4 text-neon-cyan flex items-center gap-2">
-            <span>🛒</span> Cart ({cartCount} items)
-          </h3>
+      {/* Contact Section */}
+      <section id="contact" className="container mx-auto px-4 py-16">
+        <div className="max-w-4xl mx-auto">
+          <div className="cyber-card">
+            <div className="text-center mb-8">
+              <h2 className="text-4xl font-bold text-gradient mb-4">Контакт</h2>
+              <p className="text-gray-400">
+                Свържете се с нас за въпроси и поддръжка
+              </p>
+            </div>
 
-          {/* Cart Items */}
-          <div className="space-y-2 mb-4 pb-4 border-b border-neon-green/30">
-            {Object.entries(cart).map(([productId, quantity]) => {
-              const product = products.find(p => p.id === productId);
-              if (!product) return null;
-              const price = getProductPrice(productId, quantity);
-              return (
-                <div key={productId} className="flex justify-between items-center">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{product.name}</div>
-                    <div className="text-xs text-neon-cyan/60">
-                      {quantity} × €{price.toFixed(2)}
-                    </div>
-                  </div>
-                  <span className="font-bold text-neon-green">
-                    €{(price * quantity).toFixed(2)}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Delivery Location */}
-          <div className="space-y-3 mb-4 pb-4 border-b border-neon-green/30">
-            <h4 className="font-bold text-neon-cyan flex items-center gap-2">
-              <span>📍</span> Delivery Location
-            </h4>
-
-            <label className="block">
-              <span className="text-sm text-neon-cyan mb-1 block">City:</span>
-              <select
-                value={city}
-                onChange={(e) => handleCityChange(e.target.value)}
-                className="cyber-input w-full"
-                required
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <a
+                href="https://t.me/yourtelegram"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cyber-card hover:border-neon-red transition-all text-center p-6"
               >
-                <option value="">Select city</option>
-                {CITIES.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-            </label>
+                <div className="text-4xl mb-3">📱</div>
+                <h3 className="text-lg font-bold text-neon-red mb-2">Telegram</h3>
+                <p className="text-sm text-gray-400">24/7 Support</p>
+              </a>
 
-            {city && (
-              <label className="block">
-                <span className="text-sm text-neon-cyan mb-1 block">District:</span>
-                <select
-                  value={district}
-                  onChange={(e) => setDistrict(e.target.value)}
-                  className="cyber-input w-full"
-                  required
-                >
-                  <option value="">Select district</option>
-                  {DISTRICTS[city as keyof typeof DISTRICTS]?.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-
-          {/* Promo Code */}
-          <div className="mb-4 pb-4 border-b border-neon-green/30">
-            <h4 className="font-bold text-neon-cyan mb-3 flex items-center gap-2">
-              <span>🎟️</span> Promo Code
-            </h4>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={promoCode}
-                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                placeholder="Enter code"
-                className="cyber-input flex-1"
-              />
-              <button
-                onClick={handlePromoCodeValidation}
-                className="cyber-button px-4"
-                disabled={!promoCode.trim()}
+              <a
+                href="mailto:support@sinhuella.com"
+                className="cyber-card hover:border-neon-red transition-all text-center p-6"
               >
-                Apply
-              </button>
-            </div>
-            {promoValid === true && (
-              <div className="mt-2 text-sm text-neon-green flex items-center gap-1">
-                <span>✓</span> Promo code applied! -€{promoDiscount.toFixed(2)}
-              </div>
-            )}
-            {promoValid === false && (
-              <div className="mt-2 text-sm text-red-500 flex items-center gap-1">
-                <span>✗</span> Invalid promo code
-              </div>
-            )}
-          </div>
+                <div className="text-4xl mb-3">✉️</div>
+                <h3 className="text-lg font-bold text-neon-red mb-2">Email</h3>
+                <p className="text-sm text-gray-400">support@sinhuella.com</p>
+              </a>
 
-          {/* Totals */}
-          <div className="space-y-2 mb-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-neon-cyan">Subtotal:</span>
-              <span>€{cartSubtotal.toFixed(2)}</span>
-            </div>
-            {promoDiscount > 0 && (
-              <div className="flex justify-between text-sm text-neon-green">
-                <span>Discount:</span>
-                <span>-€{promoDiscount.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="border-t border-neon-green/30 pt-2">
-              <div className="flex justify-between text-xl font-bold">
-                <span>Total:</span>
-                <span className="price-tag text-xl">€{cartTotal.toFixed(2)}</span>
+              <div className="cyber-card text-center p-6">
+                <div className="text-4xl mb-3">💬</div>
+                <h3 className="text-lg font-bold text-neon-red mb-2">Live Chat</h3>
+                <p className="text-sm text-gray-400">In-app messaging</p>
               </div>
             </div>
           </div>
-
-          {/* Checkout Button */}
-          <button
-            onClick={handleCheckout}
-            disabled={checkoutLoading || !city || !district}
-            className="cyber-button w-full text-lg"
-          >
-            {checkoutLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="loading"></span> Processing...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <span>💳</span> Checkout with Crypto
-              </span>
-            )}
-          </button>
-
-          {(!city || !district) && (
-            <div className="mt-2 text-xs text-yellow-500 text-center">
-              Please select delivery location
-            </div>
-          )}
         </div>
-      )}
+      </section>
+
+      {/* CTA Section */}
+      <section className="container mx-auto px-4 py-16">
+        <div className="cyber-card text-center max-w-3xl mx-auto bg-gradient-to-br from-neon-red/10 to-neon-orange/10 border-neon-red">
+          <h2 className="text-3xl font-bold text-gradient mb-4">
+            Готови ли сте да започнете?
+          </h2>
+          <p className="text-gray-300 mb-6">
+            Регистрирайте се сега и получете достъп до нашите продукти
+          </p>
+          <button
+            onClick={() => router.push('/register')}
+            className="cyber-button text-lg px-8"
+          >
+            Създай Безплатен Акаунт
+          </button>
+        </div>
+      </section>
+
+      <Footer />
     </div>
   );
 }

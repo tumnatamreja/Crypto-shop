@@ -280,21 +280,21 @@ export default function PaymentPage() {
         </button>
 
         <div className="cyber-card">
-          <h1 className="text-3xl font-bold neon-glow mb-2">Crypto Payment</h1>
-          <p className="text-neon-cyan">Order #{orderId.slice(0, 8)}</p>
+          <h1 className="text-3xl font-bold text-gradient mb-2">Crypto Payment</h1>
+          <p className="text-gray-400">Order #{orderId.slice(0, 8)}</p>
         </div>
       </div>
 
       {/* Payment Status */}
       {paymentStatus === 'paid' && (
         <div className="max-w-4xl mx-auto mb-6">
-          <div className="cyber-card bg-neon-green/20 border-neon-green">
+          <div className="cyber-card bg-green-500/20 border-green-500">
             <div className="text-center">
               <div className="text-6xl mb-4">✓</div>
-              <h2 className="text-2xl font-bold text-neon-green mb-2">
+              <h2 className="text-2xl font-bold text-green-500 mb-2">
                 Payment Confirmed!
               </h2>
-              <p className="text-neon-cyan">
+              <p className="text-gray-300">
                 Redirecting to your profile...
               </p>
             </div>
@@ -306,7 +306,7 @@ export default function PaymentPage() {
       {showCurrencySelect && !selectedNetwork && (
         <div className="max-w-4xl mx-auto">
           <div className="cyber-card">
-            <h2 className="text-2xl font-bold mb-6 text-neon-cyan">
+            <h2 className="text-2xl font-bold mb-6 text-gradient">
               {!selectedCurrency ? 'Select Payment Currency' : 'Select Network'}
             </h2>
 
@@ -316,11 +316,11 @@ export default function PaymentPage() {
                   <button
                     key={currency.code}
                     onClick={() => handleCurrencySelect(currency)}
-                    className="p-4 bg-neon-cyan/10 border border-neon-cyan/30 rounded-lg hover:border-neon-cyan hover:bg-neon-cyan/20 transition-all"
+                    className="p-4 bg-neon-red/10 border border-neon-red/30 rounded-lg hover:border-neon-red hover:bg-neon-red/20 transition-all"
                   >
                     <div className="text-3xl mb-2">{currency.icon}</div>
-                    <div className="font-bold text-neon-green">{currency.code}</div>
-                    <div className="text-xs text-neon-cyan/60">{currency.name}</div>
+                    <div className="font-bold text-neon-red">{currency.code}</div>
+                    <div className="text-xs text-gray-400">{currency.name}</div>
                   </button>
                 ))}
               </div>
@@ -342,12 +342,12 @@ export default function PaymentPage() {
                       key={network.network}
                       onClick={() => handleNetworkSelect(network.network)}
                       disabled={loading}
-                      className="p-6 bg-neon-green/10 border border-neon-green/30 rounded-lg hover:border-neon-green hover:bg-neon-green/20 transition-all disabled:opacity-50"
+                      className="p-6 bg-neon-red/10 border border-neon-red/30 rounded-lg hover:border-neon-red hover:bg-neon-red/20 transition-all disabled:opacity-50"
                     >
-                      <div className="font-bold text-lg text-neon-green mb-1">
+                      <div className="font-bold text-lg text-neon-red mb-1">
                         {network.displayName}
                       </div>
-                      <div className="text-sm text-neon-cyan/60">
+                      <div className="text-sm text-gray-400">
                         {selectedCurrency} on {network.network}
                       </div>
                     </button>
@@ -381,7 +381,7 @@ export default function PaymentPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* QR Code */}
               <div className="text-center">
-                <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                <h3 className="text-xl font-bold mb-4 text-gradient">
                   Scan QR Code
                 </h3>
                 {qrCodeUrl ? (
@@ -389,9 +389,9 @@ export default function PaymentPage() {
                     <img src={qrCodeUrl} alt="Payment QR Code" className="w-64 h-64" />
                   </div>
                 ) : (
-                  <div className="bg-neon-cyan/10 border-2 border-dashed border-neon-cyan/30 rounded-lg p-8">
+                  <div className="bg-neon-red/10 border-2 border-dashed border-neon-red/30 rounded-lg p-8">
                     <div className="text-6xl mb-4">📱</div>
-                    <p className="text-neon-cyan/60">QR Code will appear here</p>
+                    <p className="text-gray-400">QR Code will appear here</p>
                   </div>
                 )}
               </div>
@@ -399,37 +399,37 @@ export default function PaymentPage() {
               {/* Payment Info */}
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                  <h3 className="text-xl font-bold mb-4 text-gradient">
                     Payment Information
                   </h3>
 
                   <div className="space-y-4">
                     {/* Amount */}
-                    <div className="p-4 bg-neon-green/10 border border-neon-green rounded-lg">
-                      <div className="text-sm text-neon-cyan mb-1">Amount to Pay:</div>
+                    <div className="p-4 bg-neon-red/10 border border-neon-red rounded-lg">
+                      <div className="text-sm text-gray-300 mb-1">Amount to Pay:</div>
                       <div className="price-tag text-2xl">
                         €{amount.toFixed(2)}
                       </div>
-                      <div className="text-xs text-neon-cyan/60 mt-1">
+                      <div className="text-xs text-gray-400 mt-1">
                         Pay equivalent in {selectedCurrency}
                       </div>
                     </div>
 
                     {/* Currency & Network */}
-                    <div className="p-4 bg-neon-cyan/10 border border-neon-cyan rounded-lg">
-                      <div className="text-sm text-neon-cyan mb-1">Currency & Network:</div>
-                      <div className="font-bold text-lg">
+                    <div className="p-4 bg-neon-orange/10 border border-neon-orange rounded-lg">
+                      <div className="text-sm text-gray-300 mb-1">Currency & Network:</div>
+                      <div className="font-bold text-lg text-neon-red">
                         {getSelectedCurrencyData()?.icon} {selectedCurrency}
                       </div>
-                      <div className="text-sm text-neon-cyan/60">
+                      <div className="text-sm text-gray-400">
                         {getSelectedCurrencyData()?.networks.find(n => n.network === selectedNetwork)?.displayName}
                       </div>
                     </div>
 
                     {/* Payment Address */}
-                    <div className="p-4 bg-neon-purple/10 border border-neon-purple rounded-lg">
-                      <div className="text-sm text-neon-cyan mb-2">Payment Address:</div>
-                      <div className="font-mono text-xs break-all mb-3 p-2 bg-cyber-dark/50 rounded">
+                    <div className="p-4 bg-neon-red/10 border border-neon-red rounded-lg">
+                      <div className="text-sm text-gray-300 mb-2">Payment Address:</div>
+                      <div className="font-mono text-xs break-all mb-3 p-2 bg-black/50 rounded text-gray-300">
                         {paymentAddress}
                       </div>
                       <button
@@ -443,14 +443,14 @@ export default function PaymentPage() {
                     {/* Status */}
                     <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                       <div className="text-sm text-yellow-500 mb-1">Status:</div>
-                      <div className="font-bold">
+                      <div className="font-bold text-gray-300">
                         {paymentStatus === 'pending' ? (
                           <span className="flex items-center gap-2">
                             <span className="loading inline-block w-4 h-4"></span>
                             Waiting for payment...
                           </span>
                         ) : paymentStatus === 'paid' ? (
-                          <span className="text-neon-green">✓ Paid</span>
+                          <span className="text-green-500">✓ Paid</span>
                         ) : (
                           <span className="capitalize">{paymentStatus}</span>
                         )}
@@ -460,9 +460,9 @@ export default function PaymentPage() {
                 </div>
 
                 {/* Instructions */}
-                <div className="p-4 bg-neon-cyan/5 border border-neon-cyan/30 rounded-lg">
-                  <h4 className="font-bold text-neon-cyan mb-2">Instructions:</h4>
-                  <ol className="text-sm space-y-1 text-neon-cyan/80 list-decimal list-inside">
+                <div className="p-4 bg-neon-red/5 border border-neon-red/30 rounded-lg">
+                  <h4 className="font-bold text-neon-red mb-2">Instructions:</h4>
+                  <ol className="text-sm space-y-1 text-gray-300 list-decimal list-inside">
                     <li>Send exactly €{amount.toFixed(2)} worth of {selectedCurrency}</li>
                     <li>To the address above</li>
                     <li>Using {getSelectedCurrencyData()?.networks.find(n => n.network === selectedNetwork)?.displayName} network</li>
