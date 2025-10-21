@@ -2,6 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
+    unoptimized: true,
     domains: ['localhost'],
     remotePatterns: [
       {
@@ -9,6 +10,9 @@ const nextConfig = {
         hostname: '**',
       },
     ],
+  },
+  eslint: {
+    ignoreDuringBuilds: false,
   },
 }
 
