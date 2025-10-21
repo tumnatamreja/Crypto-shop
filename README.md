@@ -99,8 +99,7 @@ PORT=5000
 NODE_ENV=development
 DATABASE_URL=postgresql://cryptoshop_user:your_strong_password@localhost:5432/cryptoshop
 JWT_SECRET=your_super_secret_jwt_key_change_this_NOW
-OXAPAY_API_KEY=your_oxapay_api_key_here
-OXAPAY_MERCHANT_ID=your_merchant_id_here
+OXAPAY_API_KEY=your_merchant_api_key_here
 OXAPAY_CALLBACK_URL=http://your-domain.com:5000/api/webhook/oxapay
 FRONTEND_URL=http://localhost:3000
 ```
@@ -188,12 +187,18 @@ UPDATE users SET is_admin = TRUE WHERE username = 'your_username';
 
 1. Go to https://oxapay.com
 2. Register merchant account
-3. Get **API Key** and **Merchant ID**
-4. Add to `backend/.env` file
-5. Set webhook URL in OxaPay dashboard:
+3. Go to Dashboard → API section
+4. Get your **Merchant API Key**
+5. Add to `backend/.env` file:
+   ```env
+   OXAPAY_API_KEY=your_merchant_api_key_here
+   OXAPAY_CALLBACK_URL=http://your-domain.com:5000/api/webhook/oxapay
+   ```
+6. Set webhook URL in OxaPay dashboard:
    ```
    http://your-domain.com:5000/api/webhook/oxapay
    ```
+7. (Optional) Enable sandbox mode for testing before going live
 
 ---
 

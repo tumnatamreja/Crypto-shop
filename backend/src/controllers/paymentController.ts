@@ -81,32 +81,61 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
 
 export const handleWebhook = async (req: Request, res: Response) => {
   try {
-    const { orderId, status, trackId } = req.body;
+    // OxaPay webhook sends: track_id, order_id, status, amount, currency, etc.
+    const { track_id, order_id, status } = req.body;
 
-    console.log('Webhook received:', { orderId, status, trackId });
+    console.log('OxaPay Webhook received:', req.body);
 
-    if (!orderId) {
-      return res.status(400).json({ error: 'Order ID required' });
+    // Verify HMAC signature for security (optional but recommended)
+    const hmacHeader = req.headers['hmac'] as string;
+    if (hmacHeader && process.env.OXAPAY_API_KEY) {
+      const crypto = require('crypto');
+      const rawBody = JSON.stringify(req.body);
+      const expectedHmac = crypto
+        .createHmac('sha512', process.env.OXAPAY_API_KEY)
+        .update(rawBody)
+        .digest('hex');
+
+      if (hmacHeader !== expectedHmac) {
+        console.error('Invalid HMAC signature');
+        return res.status(403).send('ok'); // Still return 'ok' to avoid retries
+      }
+    }
+
+    if (!order_id) {
+      console.error('No order_id in webhook');
+      return res.status(200).send('ok'); // Return 'ok' to avoid retries
+    }
+
+    // Map OxaPay status to our status
+    let orderStatus = 'pending';
+    if (status === 'paid' || status === 'Paid') {
+      orderStatus = 'paid';
+    } else if (status === 'expired' || status === 'Expired') {
+      orderStatus = 'expired';
+    } else if (status === 'failed' || status === 'Failed') {
+      orderStatus = 'failed';
+    } else if (status === 'paying' || status === 'Paying') {
+      orderStatus = 'pending'; // Still processing
     }
 
     // Update order status
-    let orderStatus = 'pending';
-    if (status === 'Paid' || status === 'paid') {
-      orderStatus = 'paid';
-    } else if (status === 'Expired' || status === 'expired') {
-      orderStatus = 'expired';
-    } else if (status === 'Failed' || status === 'failed') {
-      orderStatus = 'failed';
-    }
-
-    await query(
-      'UPDATE orders SET status = $1 WHERE id = $2',
-      [orderStatus, orderId]
+    const result = await query(
+      'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
+      [orderStatus, order_id]
     );
 
-    res.json({ success: true, message: 'Webhook processed' });
+    if (result.rows.length === 0) {
+      console.error(`Order ${order_id} not found`);
+    } else {
+      console.log(`Order ${order_id} updated to status: ${orderStatus}`);
+    }
+
+    // IMPORTANT: OxaPay requires response to be "ok" with HTTP 200
+    res.status(200).send('ok');
   } catch (error) {
     console.error('Webhook error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    // Still return 'ok' to avoid webhook retries
+    res.status(200).send('ok');
   }
 };
