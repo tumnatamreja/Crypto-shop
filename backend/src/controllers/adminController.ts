@@ -348,13 +348,14 @@ export const getAllUsers = async (req: AuthRequest, res: Response) => {
         u.username,
         u.telegram,
         u.is_admin,
+        u.banned_until,
         u.created_at,
         COUNT(DISTINCT o.id) as total_orders,
         COALESCE(SUM(o.total_amount), 0) as total_spent
       FROM users u
       LEFT JOIN orders o ON u.id = o.user_id AND o.status = 'paid'
       ${whereClause}
-      GROUP BY u.id, u.username, u.telegram, u.is_admin, u.created_at
+      GROUP BY u.id, u.username, u.telegram, u.is_admin, u.banned_until, u.created_at
       ORDER BY u.created_at DESC`,
       params
     );
@@ -409,6 +410,67 @@ export const deleteUser = async (req: AuthRequest, res: Response) => {
     res.json({ message: `User ${result.rows[0].username} deleted successfully` });
   } catch (error) {
     console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Ban user
+export const banUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { hours } = req.body; // Hours to ban (default 24)
+
+    // Don't allow banning yourself
+    if (id === req.user!.id) {
+      return res.status(400).json({ error: 'Cannot ban yourself' });
+    }
+
+    const banHours = hours || 24;
+    const banUntil = new Date(Date.now() + banHours * 60 * 60 * 1000);
+
+    const result = await query(
+      'UPDATE users SET banned_until = $1 WHERE id = $2 RETURNING id, username, banned_until',
+      [banUntil, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`🚫 Admin ${req.user!.id} banned user ${id} until ${banUntil.toISOString()}`);
+
+    res.json({
+      user: result.rows[0],
+      message: `User ${result.rows[0].username} banned for ${banHours} hours`
+    });
+  } catch (error) {
+    console.error('Ban user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Unban user
+export const unbanUser = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const result = await query(
+      'UPDATE users SET banned_until = NULL WHERE id = $1 RETURNING id, username',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`✅ Admin ${req.user!.id} unbanned user ${id}`);
+
+    res.json({
+      user: result.rows[0],
+      message: `User ${result.rows[0].username} unbanned successfully`
+    });
+  } catch (error) {
+    console.error('Unban user error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

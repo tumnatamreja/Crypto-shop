@@ -14,6 +14,8 @@ import {
   getAdminUsers,
   updateUserAdmin,
   deleteUser,
+  banUser,
+  unbanUser,
   getChatConversations,
   getChatMessages,
   sendChatMessage,
@@ -63,6 +65,7 @@ interface User {
   username: string;
   telegram: string;
   is_admin: boolean;
+  banned_until: string | null;
   created_at: string;
   total_orders: number;
   total_spent: number;
@@ -321,6 +324,37 @@ export default function AdminPanel() {
       loadData();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to delete user');
+    }
+  };
+
+  const handleBanUser = async (userId: string, username: string) => {
+    const hoursStr = prompt(`Ban user @${username} for how many hours?`, '24');
+    if (!hoursStr) return;
+
+    const hours = parseInt(hoursStr);
+    if (isNaN(hours) || hours <= 0) {
+      alert('Invalid number of hours');
+      return;
+    }
+
+    try {
+      await banUser(userId, hours);
+      loadData();
+      alert(`User @${username} has been banned for ${hours} hours`);
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to ban user');
+    }
+  };
+
+  const handleUnbanUser = async (userId: string, username: string) => {
+    if (!confirm(`Unban user @${username}?`)) return;
+
+    try {
+      await unbanUser(userId);
+      loadData();
+      alert(`User @${username} has been unbanned`);
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to unban user');
     }
   };
 
@@ -1139,6 +1173,7 @@ export default function AdminPanel() {
                             <th className="text-left p-2 text-neon-cyan">Username</th>
                             <th className="text-left p-2 text-neon-cyan">Telegram</th>
                             <th className="text-left p-2 text-neon-cyan">Role</th>
+                            <th className="text-left p-2 text-neon-cyan">Status</th>
                             <th className="text-left p-2 text-neon-cyan">Orders</th>
                             <th className="text-left p-2 text-neon-cyan">Total Spent</th>
                             <th className="text-left p-2 text-neon-cyan">Joined</th>
@@ -1146,44 +1181,73 @@ export default function AdminPanel() {
                           </tr>
                         </thead>
                         <tbody>
-                          {users.map((user) => (
-                            <tr key={user.id} className="border-b border-neon-green/30">
-                              <td className="p-2">@{user.username}</td>
-                              <td className="p-2">{user.telegram || '-'}</td>
-                              <td className="p-2">
-                                <span
-                                  className={
-                                    user.is_admin ? 'text-red-500' : 'text-neon-green'
-                                  }
-                                >
-                                  {user.is_admin ? 'ADMIN' : 'USER'}
-                                </span>
-                              </td>
-                              <td className="p-2">{user.total_orders}</td>
-                              <td className="p-2">€{parseFloat(user.total_spent.toString()).toFixed(2)}</td>
-                              <td className="p-2">
-                                {new Date(user.created_at).toLocaleDateString()}
-                              </td>
-                              <td className="p-2">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() =>
-                                      handleToggleAdmin(user.id, !user.is_admin)
+                          {users.map((user) => {
+                            const isBanned = user.banned_until && new Date(user.banned_until) > new Date();
+                            return (
+                              <tr key={user.id} className="border-b border-neon-green/30">
+                                <td className="p-2">@{user.username}</td>
+                                <td className="p-2">{user.telegram || '-'}</td>
+                                <td className="p-2">
+                                  <span
+                                    className={
+                                      user.is_admin ? 'text-red-500' : 'text-neon-green'
                                     }
-                                    className="text-neon-cyan hover:underline text-sm"
                                   >
-                                    {user.is_admin ? 'Remove Admin' : 'Make Admin'}
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteUser(user.id, user.username)}
-                                    className="text-red-500 hover:underline text-sm"
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                                    {user.is_admin ? 'ADMIN' : 'USER'}
+                                  </span>
+                                </td>
+                                <td className="p-2">
+                                  {isBanned ? (
+                                    <span className="badge-danger">
+                                      🚫 BANNED
+                                    </span>
+                                  ) : (
+                                    <span className="badge-success">
+                                      ✓ Active
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2">{user.total_orders}</td>
+                                <td className="p-2">€{parseFloat(user.total_spent.toString()).toFixed(2)}</td>
+                                <td className="p-2">
+                                  {new Date(user.created_at).toLocaleDateString()}
+                                </td>
+                                <td className="p-2">
+                                  <div className="flex gap-2 flex-wrap">
+                                    <button
+                                      onClick={() =>
+                                        handleToggleAdmin(user.id, !user.is_admin)
+                                      }
+                                      className="text-neon-cyan hover:underline text-sm"
+                                    >
+                                      {user.is_admin ? 'Remove Admin' : 'Make Admin'}
+                                    </button>
+                                    {isBanned ? (
+                                      <button
+                                        onClick={() => handleUnbanUser(user.id, user.username)}
+                                        className="text-neon-green hover:underline text-sm"
+                                      >
+                                        Unban
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleBanUser(user.id, user.username)}
+                                        className="text-yellow-500 hover:underline text-sm"
+                                      >
+                                        Ban
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => handleDeleteUser(user.id, user.username)}
+                                      className="text-red-500 hover:underline text-sm"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>

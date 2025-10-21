@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { authenticateToken, requireAdmin } from './middleware/auth';
+import { antiSpam } from './middleware/antiSpam';
 import * as authController from './controllers/authController';
 import * as productController from './controllers/productController';
 import * as orderController from './controllers/orderController';
@@ -42,8 +43,8 @@ app.get('/api/products/:id', productController.getProductById);
 app.get('/api/orders', authenticateToken, orderController.getUserOrders);
 app.get('/api/orders/:id', authenticateToken, orderController.getOrderById);
 
-// Payment routes
-app.post('/api/checkout', authenticateToken, paymentController.createCheckout);
+// Payment routes (with anti-spam protection)
+app.post('/api/checkout', authenticateToken, antiSpam, paymentController.createCheckout);
 app.post('/api/payment/create-static-address', authenticateToken, paymentController.createStaticAddressHandler);
 app.post('/api/webhook/oxapay', paymentController.handleWebhook);
 
@@ -73,6 +74,8 @@ app.put('/api/admin/orders/:orderId/deliver', authenticateToken, requireAdmin, a
 app.get('/api/admin/users', authenticateToken, requireAdmin, adminController.getAllUsers);
 app.put('/api/admin/users/:id', authenticateToken, requireAdmin, adminController.updateUserAdmin);
 app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, adminController.deleteUser);
+app.post('/api/admin/users/:id/ban', authenticateToken, requireAdmin, adminController.banUser);
+app.post('/api/admin/users/:id/unban', authenticateToken, requireAdmin, adminController.unbanUser);
 
 // Chat routes (authenticated users and admins)
 app.post('/api/chat/send', authenticateToken, chatController.sendMessage);
