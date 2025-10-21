@@ -14,9 +14,14 @@ import {
   getAdminUsers,
   updateUserAdmin,
   deleteUser,
+  getChatConversations,
+  getChatMessages,
+  sendChatMessage,
+  markChatAsRead,
+  getUnreadChatCount,
 } from '@/lib/api';
 
-type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'settings';
+type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'chat' | 'settings';
 
 interface Product {
   id: string;
@@ -59,6 +64,24 @@ interface User {
   total_spent: number;
 }
 
+interface Conversation {
+  id: string;
+  username: string;
+  telegram: string;
+  unread_count: number;
+  last_message: string;
+  last_message_at: string;
+}
+
+interface ChatMessage {
+  id: string;
+  user_id: string;
+  sender_type: 'user' | 'admin';
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export default function AdminPanel() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -96,6 +119,13 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [userSearch, setUserSearch] = useState('');
 
+  // Chat
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [newChatMessage, setNewChatMessage] = useState('');
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
@@ -128,6 +158,13 @@ export default function AdminPanel() {
       } else if (activeTab === 'users') {
         const res = await getAdminUsers(userSearch);
         setUsers(res.data.users);
+      } else if (activeTab === 'chat') {
+        const [convRes, unreadRes] = await Promise.all([
+          getChatConversations(),
+          getUnreadChatCount()
+        ]);
+        setConversations(convRes.data.conversations);
+        setChatUnreadCount(unreadRes.data.unreadCount);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -253,6 +290,37 @@ export default function AdminPanel() {
     }
   };
 
+  // Chat handlers
+  const handleSelectConversation = async (userId: string) => {
+    setSelectedConversation(userId);
+    try {
+      const res = await getChatMessages(userId);
+      setChatMessages(res.data.messages);
+      // Mark as read
+      await markChatAsRead(userId);
+      // Reload conversations to update unread count
+      loadData();
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+    }
+  };
+
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChatMessage.trim() || !selectedConversation) return;
+
+    try {
+      await sendChatMessage(newChatMessage, selectedConversation);
+      setNewChatMessage('');
+      // Reload conversation
+      const res = await getChatMessages(selectedConversation);
+      setChatMessages(res.data.messages);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message');
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {/* Mobile Header */}
@@ -270,7 +338,7 @@ export default function AdminPanel() {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="mt-4 space-y-2">
-            {(['dashboard', 'products', 'orders', 'users', 'settings'] as Tab[]).map((tab) => (
+            {(['dashboard', 'products', 'orders', 'users', 'chat', 'settings'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => {
@@ -309,11 +377,11 @@ export default function AdminPanel() {
           <h1 className="text-3xl font-bold neon-glow mb-6">[ ADMIN ]</h1>
 
           <nav className="space-y-2 mb-6">
-            {(['dashboard', 'products', 'orders', 'users', 'settings'] as Tab[]).map((tab) => (
+            {(['dashboard', 'products', 'orders', 'users', 'chat', 'settings'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`w-full px-4 py-3 font-bold uppercase transition-all text-left ${
+                className={`w-full px-4 py-3 font-bold uppercase transition-all text-left relative ${
                   activeTab === tab
                     ? 'bg-neon-green text-cyber-dark'
                     : 'text-neon-green hover:bg-neon-green/20'
@@ -323,8 +391,14 @@ export default function AdminPanel() {
                 {tab === 'products' && '📦 '}
                 {tab === 'orders' && '🛒 '}
                 {tab === 'users' && '👥 '}
+                {tab === 'chat' && '💬 '}
                 {tab === 'settings' && '⚙️ '}
                 {tab}
+                {tab === 'chat' && chatUnreadCount > 0 && (
+                  <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {chatUnreadCount}
+                  </span>
+                )}
               </button>
             ))}
           </nav>
@@ -1009,6 +1083,135 @@ export default function AdminPanel() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Chat */}
+              {activeTab === 'chat' && (
+                <div>
+                  <h2 className="text-3xl font-bold mb-6 neon-glow hidden lg:block">
+                    User Messages
+                  </h2>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Conversations List */}
+                    <div className="cyber-card">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        Conversations ({conversations.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {conversations.length === 0 ? (
+                          <div className="text-center text-neon-cyan/60 py-8 text-sm">
+                            No conversations yet
+                          </div>
+                        ) : (
+                          conversations.map((conv) => (
+                            <button
+                              key={conv.id}
+                              onClick={() => handleSelectConversation(conv.id)}
+                              className={`w-full text-left p-3 rounded border transition-all ${
+                                selectedConversation === conv.id
+                                  ? 'bg-neon-green/20 border-neon-green'
+                                  : 'bg-neon-cyan/10 border-neon-cyan/30 hover:border-neon-cyan'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start mb-1">
+                                <span className="font-bold text-neon-green">
+                                  @{conv.username}
+                                </span>
+                                {conv.unread_count > 0 && (
+                                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                    {conv.unread_count}
+                                  </span>
+                                )}
+                              </div>
+                              {conv.telegram && (
+                                <div className="text-xs text-neon-cyan/60 mb-1">
+                                  {conv.telegram}
+                                </div>
+                              )}
+                              <div className="text-sm text-neon-cyan/80 truncate">
+                                {conv.last_message}
+                              </div>
+                              <div className="text-xs text-neon-cyan/60 mt-1">
+                                {new Date(conv.last_message_at).toLocaleString()}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Chat Messages */}
+                    <div className="lg:col-span-2">
+                      {selectedConversation ? (
+                        <div className="cyber-card">
+                          <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                            Chat with @
+                            {conversations.find((c) => c.id === selectedConversation)?.username}
+                          </h3>
+
+                          {/* Messages */}
+                          <div className="border border-neon-green/30 rounded-lg p-4 h-96 overflow-y-auto mb-4 space-y-3">
+                            {chatMessages.length === 0 ? (
+                              <div className="text-center text-neon-cyan/60 py-8">
+                                No messages in this conversation
+                              </div>
+                            ) : (
+                              chatMessages.map((msg) => (
+                                <div
+                                  key={msg.id}
+                                  className={`${
+                                    msg.sender_type === 'admin' ? 'text-right' : 'text-left'
+                                  }`}
+                                >
+                                  <div
+                                    className={`inline-block max-w-[80%] p-3 rounded-lg ${
+                                      msg.sender_type === 'admin'
+                                        ? 'bg-neon-green/20 border border-neon-green'
+                                        : 'bg-neon-cyan/20 border border-neon-cyan'
+                                    }`}
+                                  >
+                                    <div className="text-xs text-neon-cyan mb-1">
+                                      {msg.sender_type === 'admin' ? 'You (Admin)' : 'User'}
+                                    </div>
+                                    <div className="break-words">{msg.message}</div>
+                                    <div className="text-xs text-neon-cyan/60 mt-1">
+                                      {new Date(msg.created_at).toLocaleTimeString()}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          {/* Send Message Form */}
+                          <form onSubmit={handleSendChatMessage} className="space-y-3">
+                            <textarea
+                              value={newChatMessage}
+                              onChange={(e) => setNewChatMessage(e.target.value)}
+                              placeholder="Type your message to user..."
+                              className="cyber-input resize-none"
+                              rows={3}
+                            />
+                            <button
+                              type="submit"
+                              disabled={!newChatMessage.trim()}
+                              className="cyber-button w-full"
+                            >
+                              📤 Send Message
+                            </button>
+                          </form>
+                        </div>
+                      ) : (
+                        <div className="cyber-card">
+                          <div className="text-center text-neon-cyan/60 py-20">
+                            Select a conversation from the list to start chatting
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -7,6 +7,7 @@ import * as productController from './controllers/productController';
 import * as orderController from './controllers/orderController';
 import * as paymentController from './controllers/paymentController';
 import * as adminController from './controllers/adminController';
+import * as chatController from './controllers/chatController';
 
 dotenv.config();
 
@@ -63,6 +64,15 @@ app.put('/api/admin/orders/:orderId/deliver', authenticateToken, requireAdmin, a
 app.get('/api/admin/users', authenticateToken, requireAdmin, adminController.getAllUsers);
 app.put('/api/admin/users/:id', authenticateToken, requireAdmin, adminController.updateUserAdmin);
 app.delete('/api/admin/users/:id', authenticateToken, requireAdmin, adminController.deleteUser);
+
+// Chat routes (authenticated users and admins)
+app.post('/api/chat/send', authenticateToken, chatController.sendMessage);
+app.get('/api/chat/messages', authenticateToken, chatController.getMessages);
+app.get('/api/chat/unread', authenticateToken, chatController.getUnreadCount);
+app.put('/api/chat/read', authenticateToken, chatController.markAsRead);
+
+// Chat routes (admin only)
+app.get('/api/chat/conversations', authenticateToken, requireAdmin, chatController.getConversations);
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

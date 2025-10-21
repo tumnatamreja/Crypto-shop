@@ -86,4 +86,20 @@ export const updateUserAdmin = (id: string, is_admin: boolean) =>
 export const deleteUser = (id: string) =>
   api.delete(`/api/admin/users/${id}`);
 
+// Chat
+export const sendChatMessage = (message: string, recipientUserId?: string) =>
+  api.post('/api/chat/send', { message, recipientUserId });
+
+export const getChatMessages = (targetUserId?: string) =>
+  api.get('/api/chat/messages', { params: { targetUserId } });
+
+export const getUnreadChatCount = () =>
+  api.get('/api/chat/unread');
+
+export const markChatAsRead = (conversationUserId?: string) =>
+  api.put('/api/chat/read', { conversationUserId });
+
+export const getChatConversations = () =>
+  api.get('/api/chat/conversations');
+
 export default api;
