@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProfile, getUserOrders } from '@/lib/api';
+import { getProfile, getUserOrders, getChatMessages, sendChatMessage, markChatAsRead, getUnreadChatCount } from '@/lib/api';
 
 interface Order {
   id: string;
@@ -22,11 +22,28 @@ interface Order {
   }>;
 }
 
+interface ChatMessage {
+  id: string;
+  user_id: string;
+  sender_type: 'user' | 'admin';
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export default function Profile() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showChat, setShowChat] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -35,7 +52,24 @@ export default function Profile() {
       return;
     }
     loadProfile();
+    loadChat();
+
+    // Poll for new messages every 5 seconds
+    const interval = setInterval(() => {
+      loadChat();
+      loadUnreadCount();
+    }, 5000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const loadProfile = async () => {
     try {
@@ -55,6 +89,52 @@ export default function Profile() {
     }
   };
 
+  const loadChat = async () => {
+    try {
+      const res = await getChatMessages();
+      setMessages(res.data.messages);
+    } catch (error) {
+      console.error('Error loading chat:', error);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const res = await getUnreadChatCount();
+      setUnreadCount(res.data.unreadCount);
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+
+    setChatLoading(true);
+    try {
+      await sendChatMessage(newMessage);
+      setNewMessage('');
+      await loadChat();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Failed to send message');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleOpenChat = async () => {
+    setShowChat(true);
+    // Mark messages as read when opening chat
+    try {
+      await markChatAsRead();
+      setUnreadCount(0);
+    } catch (error) {
+      console.error('Error marking as read:', error);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -70,11 +150,11 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-screen p-4 md:p-8">
       <header className="cyber-card mb-8">
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-bold neon-glow">[ PROFILE ]</h1>
-          <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <h1 className="text-3xl md:text-4xl font-bold neon-glow">[ PROFILE ]</h1>
+          <div className="flex gap-4 flex-wrap">
             <button onClick={() => router.push('/')} className="cyber-button">
               Shop
             </button>
@@ -95,7 +175,7 @@ export default function Profile() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* User Info */}
-        <div className="cyber-card">
+        <div className="cyber-card h-fit">
           <h2 className="text-2xl font-bold mb-4 text-neon-cyan">User Info</h2>
           <div className="space-y-2">
             <div>
@@ -119,10 +199,94 @@ export default function Profile() {
               <span>{new Date(user?.created_at).toLocaleDateString()}</span>
             </div>
           </div>
+
+          {/* Chat Toggle Button */}
+          <button
+            onClick={handleOpenChat}
+            className="cyber-button w-full mt-6 relative"
+          >
+            💬 Chat with Admin
+            {unreadCount > 0 && (
+              <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </button>
         </div>
 
+        {/* Chat (visible when showChat is true) */}
+        {showChat && (
+          <div className="cyber-card h-fit lg:sticky lg:top-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-neon-cyan">Admin Chat</h2>
+              <button
+                onClick={() => setShowChat(false)}
+                className="text-neon-cyan hover:text-neon-green"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="border border-neon-green/30 rounded-lg p-4 h-96 overflow-y-auto mb-4 space-y-3">
+              {messages.length === 0 ? (
+                <div className="text-center text-neon-cyan/60 py-8">
+                  No messages yet. Start a conversation!
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`${
+                      msg.sender_type === 'user'
+                        ? 'text-right'
+                        : 'text-left'
+                    }`}
+                  >
+                    <div
+                      className={`inline-block max-w-[80%] p-3 rounded-lg ${
+                        msg.sender_type === 'user'
+                          ? 'bg-neon-green/20 border border-neon-green'
+                          : 'bg-neon-cyan/20 border border-neon-cyan'
+                      }`}
+                    >
+                      <div className="text-xs text-neon-cyan mb-1">
+                        {msg.sender_type === 'user' ? 'You' : 'Admin'}
+                      </div>
+                      <div className="break-words">{msg.message}</div>
+                      <div className="text-xs text-neon-cyan/60 mt-1">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Send Message Form */}
+            <form onSubmit={handleSendMessage} className="space-y-3">
+              <textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type your message..."
+                className="cyber-input resize-none"
+                rows={3}
+                disabled={chatLoading}
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !newMessage.trim()}
+                className="cyber-button w-full"
+              >
+                {chatLoading ? 'Sending...' : '📤 Send Message'}
+              </button>
+            </form>
+          </div>
+        )}
+
         {/* Orders */}
-        <div className="lg:col-span-2">
+        <div className={showChat ? 'lg:col-span-1' : 'lg:col-span-2'}>
           <div className="cyber-card">
             <h2 className="text-2xl font-bold mb-4 text-neon-cyan">
               Order History
@@ -164,9 +328,17 @@ export default function Profile() {
                     <div className="mb-2">
                       <span className="text-neon-cyan">Total:</span>{' '}
                       <span className="font-bold">
-                        {order.total_amount} {order.currency}
+                        €{order.total_amount}
                       </span>
                     </div>
+
+                    {order.status === 'paid' && order.delivery_status === 'pending' && (
+                      <div className="mb-2 p-2 bg-yellow-500/20 border border-yellow-500 rounded">
+                        <span className="text-yellow-500 text-sm">
+                          ⏳ Waiting for delivery confirmation from admin...
+                        </span>
+                      </div>
+                    )}
 
                     <div className="border-t border-neon-green/30 pt-2 mt-2">
                       <span className="text-neon-cyan font-bold">Items:</span>
@@ -178,7 +350,7 @@ export default function Profile() {
                                 {item.product_name} x {item.quantity}
                               </span>
                               <span className="text-neon-green">
-                                {item.product_price} {order.currency}
+                                €{item.product_price}
                               </span>
                             </div>
 
@@ -191,29 +363,23 @@ export default function Profile() {
                                     ✓ Delivered {item.delivered_at && `on ${new Date(item.delivered_at).toLocaleDateString()}`}
                                   </div>
                                   <div>
-                                    <span className="text-neon-cyan">
-                                      Map Link:
-                                    </span>{' '}
                                     <a
                                       href={item.delivery_map_link}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-neon-green hover:underline break-all"
+                                      className="text-neon-cyan hover:underline block"
                                     >
-                                      {item.delivery_map_link}
+                                      📍 View Map Link
                                     </a>
                                   </div>
                                   <div>
-                                    <span className="text-neon-cyan">
-                                      Image Link:
-                                    </span>{' '}
                                     <a
                                       href={item.delivery_image_link}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-neon-green hover:underline break-all"
+                                      className="text-neon-cyan hover:underline block"
                                     >
-                                      {item.delivery_image_link}
+                                      📷 View Image Link
                                     </a>
                                   </div>
                                 </div>
@@ -223,10 +389,10 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    {order.status === 'paid' && (
+                    {order.status === 'paid' && order.delivery_status === 'delivered' && (
                       <div className="mt-3 p-2 bg-neon-green/10 border border-neon-green rounded">
                         <span className="text-neon-green text-sm">
-                          ✓ Payment successful! Access links are shown above.
+                          ✓ Order completed! Delivery links are shown above.
                         </span>
                       </div>
                     )}
