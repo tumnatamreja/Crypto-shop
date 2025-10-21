@@ -1,0 +1,132 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0e27;
+  color: #00ff41;
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1f3a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00ff41;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ffff;
+}
+
+/* Neon glow effects */
+.neon-glow {
+  text-shadow: 0 0 10px #00ff41, 0 0 20px #00ff41, 0 0 30px #00ff41;
+}
+
+.neon-border {
+  border: 2px solid #00ff41;
+  box-shadow: 0 0 10px #00ff41, inset 0 0 10px #00ff41;
+}
+
+.cyber-card {
+  background: rgba(26, 31, 58, 0.8);
+  border: 1px solid #00ff41;
+  border-radius: 8px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.cyber-card:hover {
+  border-color: #00ffff;
+  box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+  transform: translateY(-2px);
+}
+
+.cyber-button {
+  background: linear-gradient(135deg, #00ff41 0%, #00ffff 100%);
+  color: #0a0e27;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  font-family: 'Courier New', monospace;
+}
+
+.cyber-button:hover {
+  box-shadow: 0 0 20px #00ff41;
+  transform: scale(1.05);
+}
+
+.cyber-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cyber-input {
+  background: rgba(26, 31, 58, 0.6);
+  border: 1px solid #00ff41;
+  color: #00ff41;
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+.cyber-input:focus {
+  outline: none;
+  border-color: #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+}
+
+.cyber-input::placeholder {
+  color: rgba(0, 255, 65, 0.5);
+}
+
+/* Loading animation */
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(0, 255, 65, 0.3);
+  border-radius: 50%;
+  border-top-color: #00ff41;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Terminal effect */
+.terminal-text::before {
+  content: '> ';
+  color: #00ffff;
+}
+
+/* Grid background */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.1) 1px, transparent 1px);
+  background-size: 50px 50px;
+}
