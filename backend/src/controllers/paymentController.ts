@@ -5,10 +5,15 @@ import { createInvoice } from '../services/oxapayService';
 
 export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
-    const { items } = req.body; // Array of { productId, quantity }
+    const { items, promoCode, city, district } = req.body; // Array of { productId, quantity }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Invalid cart items' });
+    }
+
+    // Validate location fields
+    if (!city || !district) {
+      return res.status(400).json({ error: 'City and district are required' });
     }
 
     // Get product details
@@ -22,29 +27,92 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'Some products are not available' });
     }
 
-    // Calculate total
-    let totalAmount = 0;
+    // Calculate total (check for quantity-based pricing)
+    let subtotal = 0;
     let currency = 'EUR';
-    const orderItems = items.map((item: any) => {
-      const product = products.rows.find(p => p.id === item.productId);
+    const orderItems = [];
+
+    for (const item of items) {
+      const product = products.rows.find((p: any) => p.id === item.productId);
       if (!product) throw new Error('Product not found');
 
-      totalAmount += parseFloat(product.price) * (item.quantity || 1);
       currency = product.currency || 'EUR';
+      let itemPrice = parseFloat(product.price);
+      const quantity = item.quantity || 1;
 
-      return {
+      // Check for quantity-based pricing
+      const priceTier = await query(
+        'SELECT price FROM product_price_tiers WHERE product_id = $1 AND quantity = $2',
+        [product.id, quantity]
+      );
+
+      if (priceTier.rows.length > 0) {
+        itemPrice = parseFloat(priceTier.rows[0].price);
+      }
+
+      subtotal += itemPrice * quantity;
+
+      orderItems.push({
         product_id: product.id,
         product_name: product.name,
         product_picture: product.picture_link,
-        product_price: product.price,
-        quantity: item.quantity || 1
-      };
-    });
+        product_price: itemPrice,
+        quantity: quantity
+      });
+    }
 
-    // Create order
+    // Apply promo code if provided
+    let discountAmount = 0;
+    let finalPromoCode = null;
+
+    if (promoCode && promoCode.trim().length > 0) {
+      const promoResult = await query(
+        `SELECT * FROM promo_codes
+         WHERE UPPER(code) = UPPER($1) AND is_active = true`,
+        [promoCode.trim()]
+      );
+
+      if (promoResult.rows.length > 0) {
+        const promo = promoResult.rows[0];
+
+        // Validate expiration
+        if (!promo.valid_until || new Date(promo.valid_until) >= new Date()) {
+          // Validate max uses
+          if (!promo.max_uses || promo.current_uses < promo.max_uses) {
+            // Validate minimum order amount
+            if (subtotal >= parseFloat(promo.min_order_amount || 0)) {
+              // Calculate discount
+              if (promo.discount_type === 'percentage') {
+                discountAmount = (subtotal * parseFloat(promo.discount_value)) / 100;
+              } else if (promo.discount_type === 'fixed') {
+                discountAmount = parseFloat(promo.discount_value);
+              }
+
+              // Ensure discount doesn't exceed subtotal
+              if (discountAmount > subtotal) {
+                discountAmount = subtotal;
+              }
+
+              finalPromoCode = promo.code;
+
+              // Increment promo code usage
+              await query(
+                'UPDATE promo_codes SET current_uses = current_uses + 1 WHERE id = $1',
+                [promo.id]
+              );
+            }
+          }
+        }
+      }
+    }
+
+    const totalAmount = subtotal - discountAmount;
+
+    // Create order with location and promo fields
     const orderResult = await query(
-      'INSERT INTO orders (user_id, total_amount, currency, status, delivery_status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [req.user!.id, totalAmount, currency, 'pending', 'pending']
+      `INSERT INTO orders (user_id, total_amount, subtotal, discount_amount, promo_code, currency, status, delivery_status, city, district)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [req.user!.id, totalAmount, subtotal, discountAmount, finalPromoCode, currency, 'pending', 'pending', city, district]
     );
 
     const order = orderResult.rows[0];
@@ -79,7 +147,12 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
       paymentUrl: invoice.payLink,
       trackId: invoice.trackId,
       amount: totalAmount,
-      currency: currency
+      subtotal: subtotal,
+      discount: discountAmount,
+      promoCode: finalPromoCode,
+      currency: currency,
+      city: city,
+      district: district
     });
   } catch (error: any) {
     console.error('Checkout error:', error);
@@ -153,6 +226,47 @@ export const handleWebhook = async (req: Request, res: Response) => {
       console.error(`Order ${order_id} not found in database`);
     } else {
       console.log(`✓ Order ${order_id} successfully updated to status: ${orderStatus}`);
+
+      // Process referral reward if order is paid
+      if (orderStatus === 'paid' && result.rows[0]) {
+        const order = result.rows[0];
+        try {
+          // Check if user was referred
+          const referralResult = await query(
+            `SELECT id, referrer_user_id, status
+             FROM referrals
+             WHERE referred_user_id = $1 AND status = 'pending'`,
+            [order.user_id]
+          );
+
+          if (referralResult.rows.length > 0) {
+            const referral = referralResult.rows[0];
+            const rewardPercentage = 10; // 10% commission
+            const rewardAmount = (parseFloat(order.total_amount) * rewardPercentage) / 100;
+
+            // Update referral record
+            await query(
+              `UPDATE referrals SET status = 'active', reward_amount = $1, activated_at = NOW()
+               WHERE id = $2`,
+              [rewardAmount, referral.id]
+            );
+
+            // Update referrer earnings
+            await query(
+              `UPDATE users
+               SET total_referral_earnings = total_referral_earnings + $1,
+                   total_referrals = total_referrals + 1
+               WHERE id = $2`,
+              [rewardAmount, referral.referrer_user_id]
+            );
+
+            console.log(`✓ Referral reward processed: €${rewardAmount} for user ${referral.referrer_user_id}`);
+          }
+        } catch (referralError) {
+          console.error('Error processing referral reward:', referralError);
+          // Don't fail the webhook if referral processing fails
+        }
+      }
     }
 
     // IMPORTANT: OxaPay requires response to be "ok" with HTTP 200

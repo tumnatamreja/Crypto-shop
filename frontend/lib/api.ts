@@ -45,8 +45,13 @@ export const getOrder = (id: string) =>
   api.get(`/api/orders/${id}`);
 
 // Checkout
-export const createCheckout = (items: { productId: string; quantity: number }[]) =>
-  api.post('/api/checkout', { items });
+export const createCheckout = (
+  items: { productId: string; quantity: number }[],
+  city: string,
+  district: string,
+  promoCode?: string
+) =>
+  api.post('/api/checkout', { items, city, district, promoCode });
 
 // Admin - Dashboard
 export const getDashboardStats = () =>
@@ -64,6 +69,19 @@ export const updateProduct = (id: string, data: any) =>
 
 export const deleteProduct = (id: string) =>
   api.delete(`/api/admin/products/${id}`);
+
+// Admin - Product Price Tiers
+export const getProductPriceTiers = (productId: string) =>
+  api.get(`/api/admin/products/${productId}/price-tiers`);
+
+export const createPriceTier = (productId: string, quantity: number, price: number) =>
+  api.post(`/api/admin/products/${productId}/price-tiers`, { quantity, price });
+
+export const updatePriceTier = (tierId: string, quantity: number, price: number) =>
+  api.put(`/api/admin/price-tiers/${tierId}`, { quantity, price });
+
+export const deletePriceTier = (tierId: string) =>
+  api.delete(`/api/admin/price-tiers/${tierId}`);
 
 // Admin - Orders
 export const getAdminOrders = () =>
@@ -101,5 +119,34 @@ export const markChatAsRead = (conversationUserId?: string) =>
 
 export const getChatConversations = () =>
   api.get('/api/chat/conversations');
+
+// Referrals
+export const getReferralStats = () =>
+  api.get('/api/referral/stats');
+
+export const getAdminReferrals = () =>
+  api.get('/api/admin/referrals');
+
+// Promo codes
+export const validatePromoCode = (code: string, orderAmount: number) =>
+  api.post('/api/promo/validate', { code, orderAmount });
+
+export const createPromoCode = (data: {
+  code: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  max_uses?: number;
+  valid_until?: string;
+  min_order_amount?: number;
+}) => api.post('/api/admin/promo', data);
+
+export const getAdminPromoCodes = () =>
+  api.get('/api/admin/promo');
+
+export const updatePromoCode = (id: string, data: any) =>
+  api.put(`/api/admin/promo/${id}`, data);
+
+export const deletePromoCode = (id: string) =>
+  api.delete(`/api/admin/promo/${id}`);
 
 export default api;

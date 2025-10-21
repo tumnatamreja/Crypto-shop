@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProducts, createCheckout } from '@/lib/api';
+import { getProducts, createCheckout, validatePromoCode, getProductPriceTiers } from '@/lib/api';
 
 interface Product {
   id: string;
@@ -14,13 +14,35 @@ interface Product {
   quantity: number;
 }
 
+interface PriceTier {
+  id: string;
+  product_id: string;
+  quantity: number;
+  price: number;
+}
+
+const CITIES = ['София', 'Пловдив'];
+const DISTRICTS = {
+  'Пловдив': ['Център', 'Каршияка', 'Мл. Хълм', 'Смирненски', 'Мараша'],
+  'София': ['Дианабад', 'Младост 1', 'Студентски град', 'Белите брези', 'Стрелбище', 'Гоце Делчев', 'Бъкстон', 'Манастирски ливади', 'Борово', 'Красна поляна', 'Център']
+};
+const QUANTITY_OPTIONS = [1, 2, 3, 5, 10, 20];
+
 export default function Home() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
+  const [priceTiers, setPriceTiers] = useState<{ [key: string]: PriceTier[] }>({});
   const [cart, setCart] = useState<{ [key: string]: number }>({});
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+
+  // Order form fields
+  const [city, setCity] = useState<string>('');
+  const [district, setDistrict] = useState<string>('');
+  const [promoCode, setPromoCode] = useState<string>('');
+  const [promoDiscount, setPromoDiscount] = useState<number>(0);
+  const [promoValid, setPromoValid] = useState<boolean | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -34,7 +56,21 @@ export default function Home() {
   const loadProducts = async () => {
     try {
       const response = await getProducts();
-      setProducts(response.data.products);
+      const productsData = response.data.products;
+      setProducts(productsData);
+
+      // Load price tiers for each product
+      const tiersData: { [key: string]: PriceTier[] } = {};
+      for (const product of productsData) {
+        try {
+          const tiersResponse = await getProductPriceTiers(product.id);
+          tiersData[product.id] = tiersResponse.data.priceTiers || [];
+        } catch (error) {
+          console.error(`Error loading price tiers for ${product.id}:`, error);
+          tiersData[product.id] = [];
+        }
+      }
+      setPriceTiers(tiersData);
     } catch (error) {
       console.error('Error loading products:', error);
     } finally {
@@ -42,17 +78,47 @@ export default function Home() {
     }
   };
 
-  const addToCart = (productId: string) => {
-    setCart({ ...cart, [productId]: (cart[productId] || 0) + 1 });
-  };
-
-  const removeFromCart = (productId: string) => {
-    if (cart[productId] > 1) {
-      setCart({ ...cart, [productId]: cart[productId] - 1 });
-    } else {
+  const setCartQuantity = (productId: string, quantity: number) => {
+    if (quantity === 0) {
       const newCart = { ...cart };
       delete newCart[productId];
       setCart(newCart);
+    } else {
+      setCart({ ...cart, [productId]: quantity });
+    }
+  };
+
+  const getProductPrice = (productId: string, quantity: number): number => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return 0;
+
+    const tiers = priceTiers[productId] || [];
+    const tier = tiers.find(t => t.quantity === quantity);
+    return tier ? parseFloat(tier.price.toString()) : parseFloat(product.price.toString());
+  };
+
+  const handleCityChange = (newCity: string) => {
+    setCity(newCity);
+    setDistrict(''); // Reset district when city changes
+  };
+
+  const handlePromoCodeValidation = async () => {
+    if (!promoCode.trim()) {
+      setPromoValid(null);
+      setPromoDiscount(0);
+      return;
+    }
+
+    try {
+      const response = await validatePromoCode(promoCode, cartSubtotal);
+      if (response.data.valid) {
+        setPromoValid(true);
+        setPromoDiscount(response.data.discountAmount);
+      }
+    } catch (error: any) {
+      setPromoValid(false);
+      setPromoDiscount(0);
+      alert(error.response?.data?.error || 'Invalid promo code');
     }
   };
 
@@ -73,9 +139,14 @@ export default function Home() {
       return;
     }
 
+    if (!city || !district) {
+      alert('Please select both city and district');
+      return;
+    }
+
     setCheckoutLoading(true);
     try {
-      const response = await createCheckout(items);
+      const response = await createCheckout(items, city, district, promoCode || undefined);
       window.location.href = response.data.paymentUrl;
     } catch (error: any) {
       alert(error.response?.data?.error || 'Checkout failed');
@@ -91,10 +162,11 @@ export default function Home() {
     router.push('/');
   };
 
-  const cartTotal = products
-    .filter((p) => cart[p.id])
-    .reduce((sum, p) => sum + p.price * cart[p.id], 0);
+  const cartSubtotal = Object.entries(cart).reduce((sum, [productId, quantity]) => {
+    return sum + getProductPrice(productId, quantity) * quantity;
+  }, 0);
 
+  const cartTotal = cartSubtotal - promoDiscount;
   const cartCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
   return (
@@ -158,88 +230,214 @@ export default function Home() {
             No products available
           </div>
         ) : (
-          products.map((product) => (
-            <div key={product.id} className="cyber-card">
-              <img
-                src={product.picture_link}
-                alt={product.name}
-                className="w-full h-48 object-cover rounded mb-4 border border-neon-green"
-              />
-              <h3 className="text-xl font-bold mb-2 text-neon-cyan">
-                {product.name}
-              </h3>
-              <p className="text-sm mb-4 opacity-80">{product.description}</p>
-              <div className="flex justify-between items-center mb-4">
-                <span className="text-2xl font-bold">
-                  €{product.price}
-                </span>
+          products.map((product) => {
+            const currentQuantity = cart[product.id] || 0;
+            const currentPrice = currentQuantity > 0 ? getProductPrice(product.id, currentQuantity) : product.price;
+
+            return (
+              <div key={product.id} className="product-card">
+                <img
+                  src={product.picture_link}
+                  alt={product.name}
+                  className="w-full h-48 object-cover rounded-t-2xl"
+                />
+                <div className="p-6">
+                  <h3 className="text-2xl font-bold mb-2 text-neon-cyan">
+                    {product.name}
+                  </h3>
+                  <p className="text-sm mb-4 opacity-80">{product.description}</p>
+
+                  <div className="mb-4">
+                    <div className="price-tag">
+                      €{currentPrice.toFixed(2)}
+                    </div>
+                    {priceTiers[product.id] && priceTiers[product.id].length > 0 && (
+                      <div className="text-xs text-neon-cyan/70 mt-1">
+                        Special pricing available
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="block">
+                      <span className="text-sm text-neon-cyan mb-2 block">Quantity:</span>
+                      <select
+                        value={currentQuantity}
+                        onChange={(e) => setCartQuantity(product.id, parseInt(e.target.value))}
+                        className="cyber-input w-full"
+                      >
+                        <option value="0">Select quantity</option>
+                        {QUANTITY_OPTIONS.map(qty => {
+                          const price = getProductPrice(product.id, qty);
+                          return (
+                            <option key={qty} value={qty}>
+                              {qty} {qty === 1 ? 'unit' : 'units'} - €{price.toFixed(2)} each
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </label>
+
+                    {currentQuantity > 0 && (
+                      <div className="p-3 bg-neon-green/10 border border-neon-green rounded-lg">
+                        <div className="text-sm text-neon-cyan">
+                          Subtotal: <span className="font-bold text-neon-green">
+                            €{(currentPrice * currentQuantity).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2">
-                {cart[product.id] ? (
-                  <>
-                    <button
-                      onClick={() => removeFromCart(product.id)}
-                      className="cyber-button flex-1"
-                    >
-                      -
-                    </button>
-                    <span className="flex items-center justify-center px-4 text-neon-cyan font-bold">
-                      {cart[product.id]}
-                    </span>
-                    <button
-                      onClick={() => addToCart(product.id)}
-                      className="cyber-button flex-1"
-                    >
-                      +
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => addToCart(product.id)}
-                    className="cyber-button w-full"
-                  >
-                    Add to Cart
-                  </button>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
       {/* Cart */}
       {cartCount > 0 && (
-        <div className="fixed bottom-8 right-8 cyber-card max-w-md">
-          <h3 className="text-xl font-bold mb-4 text-neon-cyan">
-            Shopping Cart ({cartCount} items)
+        <div className="fixed bottom-8 right-8 cyber-card max-w-md max-h-[80vh] overflow-y-auto">
+          <h3 className="text-2xl font-bold mb-4 text-neon-cyan flex items-center gap-2">
+            <span>🛒</span> Cart ({cartCount} items)
           </h3>
-          <div className="space-y-2 mb-4">
-            {products
-              .filter((p) => cart[p.id])
-              .map((p) => (
-                <div key={p.id} className="flex justify-between">
-                  <span>
-                    {p.name} x {cart[p.id]}
-                  </span>
-                  <span className="text-neon-cyan">
-                    €{(p.price * cart[p.id]).toFixed(2)}
+
+          {/* Cart Items */}
+          <div className="space-y-2 mb-4 pb-4 border-b border-neon-green/30">
+            {Object.entries(cart).map(([productId, quantity]) => {
+              const product = products.find(p => p.id === productId);
+              if (!product) return null;
+              const price = getProductPrice(productId, quantity);
+              return (
+                <div key={productId} className="flex justify-between items-center">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{product.name}</div>
+                    <div className="text-xs text-neon-cyan/60">
+                      {quantity} × €{price.toFixed(2)}
+                    </div>
+                  </div>
+                  <span className="font-bold text-neon-green">
+                    €{(price * quantity).toFixed(2)}
                   </span>
                 </div>
-              ))}
+              );
+            })}
           </div>
-          <div className="border-t border-neon-green pt-4 mb-4">
-            <div className="flex justify-between text-xl font-bold">
-              <span>Total:</span>
-              <span className="text-neon-cyan">€{cartTotal.toFixed(2)}</span>
+
+          {/* Delivery Location */}
+          <div className="space-y-3 mb-4 pb-4 border-b border-neon-green/30">
+            <h4 className="font-bold text-neon-cyan flex items-center gap-2">
+              <span>📍</span> Delivery Location
+            </h4>
+
+            <label className="block">
+              <span className="text-sm text-neon-cyan mb-1 block">City:</span>
+              <select
+                value={city}
+                onChange={(e) => handleCityChange(e.target.value)}
+                className="cyber-input w-full"
+                required
+              >
+                <option value="">Select city</option>
+                {CITIES.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </label>
+
+            {city && (
+              <label className="block">
+                <span className="text-sm text-neon-cyan mb-1 block">District:</span>
+                <select
+                  value={district}
+                  onChange={(e) => setDistrict(e.target.value)}
+                  className="cyber-input w-full"
+                  required
+                >
+                  <option value="">Select district</option>
+                  {DISTRICTS[city as keyof typeof DISTRICTS]?.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+
+          {/* Promo Code */}
+          <div className="mb-4 pb-4 border-b border-neon-green/30">
+            <h4 className="font-bold text-neon-cyan mb-3 flex items-center gap-2">
+              <span>🎟️</span> Promo Code
+            </h4>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                placeholder="Enter code"
+                className="cyber-input flex-1"
+              />
+              <button
+                onClick={handlePromoCodeValidation}
+                className="cyber-button px-4"
+                disabled={!promoCode.trim()}
+              >
+                Apply
+              </button>
+            </div>
+            {promoValid === true && (
+              <div className="mt-2 text-sm text-neon-green flex items-center gap-1">
+                <span>✓</span> Promo code applied! -€{promoDiscount.toFixed(2)}
+              </div>
+            )}
+            {promoValid === false && (
+              <div className="mt-2 text-sm text-red-500 flex items-center gap-1">
+                <span>✗</span> Invalid promo code
+              </div>
+            )}
+          </div>
+
+          {/* Totals */}
+          <div className="space-y-2 mb-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-neon-cyan">Subtotal:</span>
+              <span>€{cartSubtotal.toFixed(2)}</span>
+            </div>
+            {promoDiscount > 0 && (
+              <div className="flex justify-between text-sm text-neon-green">
+                <span>Discount:</span>
+                <span>-€{promoDiscount.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="border-t border-neon-green/30 pt-2">
+              <div className="flex justify-between text-xl font-bold">
+                <span>Total:</span>
+                <span className="price-tag text-xl">€{cartTotal.toFixed(2)}</span>
+              </div>
             </div>
           </div>
+
+          {/* Checkout Button */}
           <button
             onClick={handleCheckout}
-            disabled={checkoutLoading}
-            className="cyber-button w-full"
+            disabled={checkoutLoading || !city || !district}
+            className="cyber-button w-full text-lg"
           >
-            {checkoutLoading ? 'Processing...' : 'Checkout with Crypto'}
+            {checkoutLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="loading"></span> Processing...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <span>💳</span> Checkout with Crypto
+              </span>
+            )}
           </button>
+
+          {(!city || !district) && (
+            <div className="mt-2 text-xs text-yellow-500 text-center">
+              Please select delivery location
+            </div>
+          )}
         </div>
       )}
     </div>
