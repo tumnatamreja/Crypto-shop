@@ -19,9 +19,13 @@ import {
   sendChatMessage,
   markChatAsRead,
   getUnreadChatCount,
+  getAdminPromoCodes,
+  createPromoCode,
+  updatePromoCode,
+  deletePromoCode,
 } from '@/lib/api';
 
-type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'chat' | 'settings';
+type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'chat' | 'promos' | 'settings';
 
 interface Product {
   id: string;
@@ -82,6 +86,20 @@ interface ChatMessage {
   created_at: string;
 }
 
+interface PromoCode {
+  id: string;
+  code: string;
+  discount_type: 'percentage' | 'fixed';
+  discount_value: number;
+  max_uses: number | null;
+  current_uses: number;
+  valid_from: string;
+  valid_until: string | null;
+  is_active: boolean;
+  min_order_amount: number;
+  created_at: string;
+}
+
 export default function AdminPanel() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>('dashboard');
@@ -126,6 +144,19 @@ export default function AdminPanel() {
   const [newChatMessage, setNewChatMessage] = useState('');
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
 
+  // Promo Codes
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
+  const [showPromoForm, setShowPromoForm] = useState(false);
+  const [editingPromo, setEditingPromo] = useState<PromoCode | null>(null);
+  const [promoForm, setPromoForm] = useState({
+    code: '',
+    discount_type: 'percentage' as 'percentage' | 'fixed',
+    discount_value: '',
+    max_uses: '',
+    valid_until: '',
+    min_order_amount: '',
+  });
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
@@ -165,6 +196,9 @@ export default function AdminPanel() {
         ]);
         setConversations(convRes.data.conversations);
         setChatUnreadCount(unreadRes.data.unreadCount);
+      } else if (activeTab === 'promos') {
+        const res = await getAdminPromoCodes();
+        setPromoCodes(res.data.promoCodes || []);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -321,6 +355,74 @@ export default function AdminPanel() {
     }
   };
 
+  // Promo code handlers
+  const handlePromoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const promoData = {
+        code: promoForm.code.toUpperCase(),
+        discount_type: promoForm.discount_type,
+        discount_value: parseFloat(promoForm.discount_value),
+        max_uses: promoForm.max_uses ? parseInt(promoForm.max_uses) : undefined,
+        valid_until: promoForm.valid_until || undefined,
+        min_order_amount: promoForm.min_order_amount ? parseFloat(promoForm.min_order_amount) : undefined,
+      };
+
+      if (editingPromo) {
+        await updatePromoCode(editingPromo.id, promoData);
+      } else {
+        await createPromoCode(promoData);
+      }
+
+      setShowPromoForm(false);
+      setEditingPromo(null);
+      setPromoForm({
+        code: '',
+        discount_type: 'percentage',
+        discount_value: '',
+        max_uses: '',
+        valid_until: '',
+        min_order_amount: '',
+      });
+      loadData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to save promo code');
+    }
+  };
+
+  const handleEditPromo = (promo: PromoCode) => {
+    setEditingPromo(promo);
+    setPromoForm({
+      code: promo.code,
+      discount_type: promo.discount_type,
+      discount_value: promo.discount_value.toString(),
+      max_uses: promo.max_uses?.toString() || '',
+      valid_until: promo.valid_until ? promo.valid_until.split('T')[0] : '',
+      min_order_amount: promo.min_order_amount.toString(),
+    });
+    setShowPromoForm(true);
+  };
+
+  const handleDeletePromo = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this promo code?')) return;
+
+    try {
+      await deletePromoCode(id);
+      loadData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to delete promo code');
+    }
+  };
+
+  const handleTogglePromo = async (promo: PromoCode) => {
+    try {
+      await updatePromoCode(promo.id, { is_active: !promo.is_active });
+      loadData();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to update promo code');
+    }
+  };
+
   return (
     <div className="min-h-screen">
       {/* Mobile Header */}
@@ -377,7 +479,7 @@ export default function AdminPanel() {
           <h1 className="text-3xl font-bold neon-glow mb-6">[ ADMIN ]</h1>
 
           <nav className="space-y-2 mb-6">
-            {(['dashboard', 'products', 'orders', 'users', 'chat', 'settings'] as Tab[]).map((tab) => (
+            {(['dashboard', 'products', 'orders', 'users', 'chat', 'promos', 'settings'] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -392,6 +494,7 @@ export default function AdminPanel() {
                 {tab === 'orders' && '🛒 '}
                 {tab === 'users' && '👥 '}
                 {tab === 'chat' && '💬 '}
+                {tab === 'promos' && '🎟️ '}
                 {tab === 'settings' && '⚙️ '}
                 {tab}
                 {tab === 'chat' && chatUnreadCount > 0 && (
@@ -1213,6 +1316,216 @@ export default function AdminPanel() {
                         </div>
                       )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Promo Codes */}
+              {activeTab === 'promos' && (
+                <div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold neon-glow hidden lg:block">
+                      Promo Codes
+                    </h2>
+                    <button
+                      onClick={() => setShowPromoForm(true)}
+                      className="cyber-button"
+                    >
+                      + Create Promo Code
+                    </button>
+                  </div>
+
+                  {/* Promo Form Modal */}
+                  {showPromoForm && (
+                    <div className="cyber-card mb-6">
+                      <h3 className="text-xl font-bold mb-4 text-neon-cyan">
+                        {editingPromo ? 'Edit Promo Code' : 'Create New Promo Code'}
+                      </h3>
+                      <form onSubmit={handlePromoSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <label className="block">
+                            <span className="text-sm text-neon-cyan mb-1 block">
+                              Code: *
+                            </span>
+                            <input
+                              type="text"
+                              value={promoForm.code}
+                              onChange={(e) => setPromoForm({ ...promoForm, code: e.target.value.toUpperCase() })}
+                              className="cyber-input w-full font-mono"
+                              placeholder="SUMMER2024"
+                              required
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-sm text-neon-cyan mb-1 block">
+                              Discount Type: *
+                            </span>
+                            <select
+                              value={promoForm.discount_type}
+                              onChange={(e) => setPromoForm({ ...promoForm, discount_type: e.target.value as 'percentage' | 'fixed' })}
+                              className="cyber-input w-full"
+                              required
+                            >
+                              <option value="percentage">Percentage (%)</option>
+                              <option value="fixed">Fixed Amount (€)</option>
+                            </select>
+                          </label>
+
+                          <label className="block">
+                            <span className="text-sm text-neon-cyan mb-1 block">
+                              Discount Value: *
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={promoForm.discount_value}
+                              onChange={(e) => setPromoForm({ ...promoForm, discount_value: e.target.value })}
+                              className="cyber-input w-full"
+                              placeholder={promoForm.discount_type === 'percentage' ? '10' : '5.00'}
+                              required
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-sm text-neon-cyan mb-1 block">
+                              Max Uses (optional):
+                            </span>
+                            <input
+                              type="number"
+                              value={promoForm.max_uses}
+                              onChange={(e) => setPromoForm({ ...promoForm, max_uses: e.target.value })}
+                              className="cyber-input w-full"
+                              placeholder="Leave empty for unlimited"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-sm text-neon-cyan mb-1 block">
+                              Valid Until (optional):
+                            </span>
+                            <input
+                              type="date"
+                              value={promoForm.valid_until}
+                              onChange={(e) => setPromoForm({ ...promoForm, valid_until: e.target.value })}
+                              className="cyber-input w-full"
+                            />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-sm text-neon-cyan mb-1 block">
+                              Min Order Amount (€):
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={promoForm.min_order_amount}
+                              onChange={(e) => setPromoForm({ ...promoForm, min_order_amount: e.target.value })}
+                              className="cyber-input w-full"
+                              placeholder="0.00"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button type="submit" className="cyber-button flex-1">
+                            {editingPromo ? 'Update' : 'Create'} Promo Code
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowPromoForm(false);
+                              setEditingPromo(null);
+                              setPromoForm({
+                                code: '',
+                                discount_type: 'percentage',
+                                discount_value: '',
+                                max_uses: '',
+                                valid_until: '',
+                                min_order_amount: '',
+                              });
+                            }}
+                            className="cyber-button flex-1"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Promo Codes List */}
+                  <div className="cyber-card">
+                    {promoCodes.length === 0 ? (
+                      <div className="text-center text-neon-cyan/60 py-12">
+                        No promo codes yet. Create one to get started!
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr className="border-b border-neon-green/30">
+                              <th className="text-left p-3 text-neon-cyan">Code</th>
+                              <th className="text-left p-3 text-neon-cyan">Discount</th>
+                              <th className="text-left p-3 text-neon-cyan">Usage</th>
+                              <th className="text-left p-3 text-neon-cyan">Valid Until</th>
+                              <th className="text-left p-3 text-neon-cyan">Status</th>
+                              <th className="text-left p-3 text-neon-cyan">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {promoCodes.map((promo) => (
+                              <tr key={promo.id} className="border-b border-neon-green/10">
+                                <td className="p-3 font-mono font-bold text-neon-green">
+                                  {promo.code}
+                                </td>
+                                <td className="p-3">
+                                  {promo.discount_type === 'percentage'
+                                    ? `${promo.discount_value}%`
+                                    : `€${promo.discount_value}`}
+                                </td>
+                                <td className="p-3">
+                                  {promo.current_uses}
+                                  {promo.max_uses ? ` / ${promo.max_uses}` : ' / ∞'}
+                                </td>
+                                <td className="p-3">
+                                  {promo.valid_until
+                                    ? new Date(promo.valid_until).toLocaleDateString()
+                                    : 'No expiry'}
+                                </td>
+                                <td className="p-3">
+                                  <span className={`badge-${promo.is_active ? 'success' : 'danger'}`}>
+                                    {promo.is_active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
+                                <td className="p-3">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => handleTogglePromo(promo)}
+                                      className="text-xs cyber-button px-2 py-1"
+                                    >
+                                      {promo.is_active ? '⏸️' : '▶️'}
+                                    </button>
+                                    <button
+                                      onClick={() => handleEditPromo(promo)}
+                                      className="text-xs cyber-button px-2 py-1"
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeletePromo(promo.id)}
+                                      className="text-xs cyber-button px-2 py-1"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

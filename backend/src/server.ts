@@ -8,6 +8,8 @@ import * as orderController from './controllers/orderController';
 import * as paymentController from './controllers/paymentController';
 import * as adminController from './controllers/adminController';
 import * as chatController from './controllers/chatController';
+import * as referralController from './controllers/referralController';
+import * as promoCodeController from './controllers/promoCodeController';
 
 dotenv.config();
 
@@ -42,6 +44,7 @@ app.get('/api/orders/:id', authenticateToken, orderController.getOrderById);
 
 // Payment routes
 app.post('/api/checkout', authenticateToken, paymentController.createCheckout);
+app.post('/api/payment/create-static-address', authenticateToken, paymentController.createStaticAddressHandler);
 app.post('/api/webhook/oxapay', paymentController.handleWebhook);
 
 // Admin routes
@@ -52,6 +55,12 @@ app.get('/api/admin/products', authenticateToken, requireAdmin, adminController.
 app.post('/api/admin/products', authenticateToken, requireAdmin, adminController.createProduct);
 app.put('/api/admin/products/:id', authenticateToken, requireAdmin, adminController.updateProduct);
 app.delete('/api/admin/products/:id', authenticateToken, requireAdmin, adminController.deleteProduct);
+
+// Admin - Product Price Tiers
+app.get('/api/admin/products/:productId/price-tiers', authenticateToken, requireAdmin, adminController.getProductPriceTiers);
+app.post('/api/admin/products/:productId/price-tiers', authenticateToken, requireAdmin, adminController.createPriceTier);
+app.put('/api/admin/price-tiers/:tierId', authenticateToken, requireAdmin, adminController.updatePriceTier);
+app.delete('/api/admin/price-tiers/:tierId', authenticateToken, requireAdmin, adminController.deletePriceTier);
 
 // Admin - Orders
 app.get('/api/admin/orders', authenticateToken, requireAdmin, adminController.getAllOrders);
@@ -73,6 +82,21 @@ app.put('/api/chat/read', authenticateToken, chatController.markAsRead);
 
 // Chat routes (admin only)
 app.get('/api/chat/conversations', authenticateToken, requireAdmin, chatController.getConversations);
+
+// Referral routes (authenticated users)
+app.get('/api/referral/stats', authenticateToken, referralController.getReferralStats);
+
+// Referral routes (admin only)
+app.get('/api/admin/referrals', authenticateToken, requireAdmin, referralController.getAllReferrals);
+
+// Promo code routes (authenticated users)
+app.post('/api/promo/validate', authenticateToken, promoCodeController.validatePromoCode);
+
+// Promo code routes (admin only)
+app.post('/api/admin/promo', authenticateToken, requireAdmin, promoCodeController.createPromoCode);
+app.get('/api/admin/promo', authenticateToken, requireAdmin, promoCodeController.getAllPromoCodes);
+app.put('/api/admin/promo/:id', authenticateToken, requireAdmin, promoCodeController.updatePromoCode);
+app.delete('/api/admin/promo/:id', authenticateToken, requireAdmin, promoCodeController.deletePromoCode);
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

@@ -113,6 +113,109 @@ export const deleteProduct = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// Product Price Tiers Management
+export const getProductPriceTiers = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId } = req.params;
+
+    const result = await query(
+      'SELECT * FROM product_price_tiers WHERE product_id = $1 ORDER BY quantity ASC',
+      [productId]
+    );
+
+    res.json({ priceTiers: result.rows });
+  } catch (error) {
+    console.error('Get price tiers error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const createPriceTier = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId } = req.params;
+    const { quantity, price } = req.body;
+
+    if (!quantity || !price || quantity <= 0 || price <= 0) {
+      return res.status(400).json({ error: 'Valid quantity and price are required' });
+    }
+
+    // Check if product exists
+    const productCheck = await query(
+      'SELECT id FROM products WHERE id = $1',
+      [productId]
+    );
+
+    if (productCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
+
+    // Check if tier already exists for this quantity
+    const existingTier = await query(
+      'SELECT id FROM product_price_tiers WHERE product_id = $1 AND quantity = $2',
+      [productId, quantity]
+    );
+
+    if (existingTier.rows.length > 0) {
+      return res.status(400).json({ error: 'Price tier for this quantity already exists' });
+    }
+
+    const result = await query(
+      'INSERT INTO product_price_tiers (product_id, quantity, price) VALUES ($1, $2, $3) RETURNING *',
+      [productId, quantity, price]
+    );
+
+    res.status(201).json({ priceTier: result.rows[0], message: 'Price tier created successfully' });
+  } catch (error) {
+    console.error('Create price tier error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updatePriceTier = async (req: AuthRequest, res: Response) => {
+  try {
+    const { tierId } = req.params;
+    const { quantity, price } = req.body;
+
+    if (!quantity || !price || quantity <= 0 || price <= 0) {
+      return res.status(400).json({ error: 'Valid quantity and price are required' });
+    }
+
+    const result = await query(
+      'UPDATE product_price_tiers SET quantity = $1, price = $2 WHERE id = $3 RETURNING *',
+      [quantity, price, tierId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Price tier not found' });
+    }
+
+    res.json({ priceTier: result.rows[0], message: 'Price tier updated successfully' });
+  } catch (error) {
+    console.error('Update price tier error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const deletePriceTier = async (req: AuthRequest, res: Response) => {
+  try {
+    const { tierId } = req.params;
+
+    const result = await query(
+      'DELETE FROM product_price_tiers WHERE id = $1 RETURNING *',
+      [tierId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Price tier not found' });
+    }
+
+    res.json({ message: 'Price tier deleted successfully' });
+  } catch (error) {
+    console.error('Delete price tier error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 // Order Management
 export const getAllOrders = async (req: AuthRequest, res: Response) => {
   try {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProfile, getUserOrders, getChatMessages, sendChatMessage, markChatAsRead, getUnreadChatCount } from '@/lib/api';
+import { getProfile, getUserOrders, getChatMessages, sendChatMessage, markChatAsRead, getUnreadChatCount, getReferralStats } from '@/lib/api';
 
 interface Order {
   id: string;
@@ -45,6 +45,13 @@ export default function Profile() {
   const [showChat, setShowChat] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Referral state
+  const [referralCode, setReferralCode] = useState<string>('');
+  const [totalReferrals, setTotalReferrals] = useState<number>(0);
+  const [totalEarnings, setTotalEarnings] = useState<number>(0);
+  const [referrals, setReferrals] = useState<any[]>([]);
+  const [copySuccess, setCopySuccess] = useState(false);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -53,6 +60,7 @@ export default function Profile() {
     }
     loadProfile();
     loadChat();
+    loadReferralStats();
 
     // Poll for new messages every 5 seconds
     const interval = setInterval(() => {
@@ -105,6 +113,25 @@ export default function Profile() {
     } catch (error) {
       console.error('Error loading unread count:', error);
     }
+  };
+
+  const loadReferralStats = async () => {
+    try {
+      const res = await getReferralStats();
+      setReferralCode(res.data.referralCode || '');
+      setTotalReferrals(res.data.totalReferrals || 0);
+      setTotalEarnings(res.data.totalEarnings || 0);
+      setReferrals(res.data.referrals || []);
+    } catch (error) {
+      console.error('Error loading referral stats:', error);
+    }
+  };
+
+  const copyReferralLink = () => {
+    const referralLink = `${window.location.origin}/register?ref=${referralCode}`;
+    navigator.clipboard.writeText(referralLink);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -212,6 +239,87 @@ export default function Profile() {
               </span>
             )}
           </button>
+        </div>
+
+        {/* Referral Program */}
+        <div className="cyber-card h-fit">
+          <h2 className="text-2xl font-bold mb-4 text-neon-cyan flex items-center gap-2">
+            <span>🎁</span> Referral Program
+          </h2>
+
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-4 bg-neon-green/10 border border-neon-green rounded-lg">
+                <div className="text-xs text-neon-cyan mb-1">Total Referrals</div>
+                <div className="text-2xl font-bold text-neon-green">{totalReferrals}</div>
+              </div>
+              <div className="p-4 bg-neon-cyan/10 border border-neon-cyan rounded-lg">
+                <div className="text-xs text-neon-cyan mb-1">Earnings</div>
+                <div className="text-2xl font-bold text-neon-cyan">€{totalEarnings.toFixed(2)}</div>
+              </div>
+            </div>
+
+            {/* Referral Code */}
+            <div>
+              <label className="text-sm text-neon-cyan mb-2 block">Your Referral Code:</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={referralCode || 'Generating...'}
+                  readOnly
+                  className="cyber-input flex-1 font-mono text-neon-green"
+                />
+                <button
+                  onClick={copyReferralLink}
+                  className="cyber-button px-4"
+                  disabled={!referralCode}
+                >
+                  {copySuccess ? '✓' : '📋'}
+                </button>
+              </div>
+              {copySuccess && (
+                <div className="text-xs text-neon-green mt-1">Referral link copied!</div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="p-3 bg-neon-cyan/5 border border-neon-cyan/30 rounded-lg text-sm">
+              <div className="text-neon-cyan font-bold mb-1">How it works:</div>
+              <ul className="space-y-1 text-xs opacity-80">
+                <li>• Share your referral link with friends</li>
+                <li>• They register and make their first purchase</li>
+                <li>• You earn 10% commission on their order</li>
+              </ul>
+            </div>
+
+            {/* Referral History */}
+            {referrals.length > 0 && (
+              <div>
+                <div className="text-sm text-neon-cyan font-bold mb-2">Recent Referrals:</div>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {referrals.slice(0, 5).map((ref) => (
+                    <div
+                      key={ref.id}
+                      className="p-2 bg-neon-green/5 border border-neon-green/30 rounded text-xs"
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className="text-neon-cyan">@{ref.referred_username}</span>
+                        <span className={`badge-${ref.status === 'active' ? 'success' : 'warning'}`}>
+                          {ref.status}
+                        </span>
+                      </div>
+                      {ref.reward_amount > 0 && (
+                        <div className="text-neon-green mt-1">
+                          Earned: €{parseFloat(ref.reward_amount).toFixed(2)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Chat (visible when showChat is true) */}
