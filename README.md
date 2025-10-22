@@ -187,7 +187,7 @@ nano .env
 **Edit the `.env` file:**
 ```env
 # Server Configuration
-PORT=5000
+PORT=3001
 NODE_ENV=development
 
 # Database Configuration
@@ -200,7 +200,7 @@ JWT_SECRET=your_super_secret_random_jwt_key_change_this_NOW_min_32_chars
 OXAPAY_API_KEY=your_oxapay_merchant_api_key_here
 
 # Frontend URL (for CORS)
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:3002
 ```
 
 **⚠️ Security Notes:**
@@ -217,14 +217,14 @@ FRONTEND_URL=http://localhost:3000
 npm run dev
 
 # You should see:
-# 🚀 Server running on port 5000
-# 📡 Health check: http://localhost:5000/health
+# 🚀 Server running on port 3001
+# 📡 Health check: http://localhost:3001/health
 ```
 
 **Test backend:**
 ```bash
 # Open new terminal
-curl http://localhost:5000/health
+curl http://localhost:3001/health
 
 # Expected response:
 # {"status":"ok","message":"CryptoShop API is running"}
@@ -252,7 +252,7 @@ nano .env.local
 **Edit the `.env.local` file:**
 ```env
 # API URL (backend server)
-NEXT_PUBLIC_API_URL=http://localhost:5000
+NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ---
@@ -265,10 +265,10 @@ npm run dev
 
 # You should see:
 # ▲ Next.js 14.x
-# - Local: http://localhost:3000
+# - Local: http://localhost:3002
 ```
 
-**✅ Frontend is ready!** Open http://localhost:3000 in your browser.
+**✅ Frontend is ready!** Open http://localhost:3002 in your browser.
 
 ---
 
@@ -337,7 +337,7 @@ SELECT id, username, is_admin FROM users;
 # Download from https://ngrok.com
 
 # Expose local backend
-ngrok http 5000
+ngrok http 3001
 
 # Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
 ```
@@ -357,7 +357,7 @@ ngrok http 5000
 
 #### 11.1 Test User Registration
 
-1. Open http://localhost:3000
+1. Open http://localhost:3002
 2. Click **"Създай Акаунт"** (Create Account)
 3. Register with:
    - Username: `testuser`
@@ -548,7 +548,7 @@ Crypto-shop/
 
 **Backend `.env` for production:**
 ```env
-PORT=5000
+PORT=3001
 NODE_ENV=production
 DATABASE_URL=postgresql://cryptoshop_user:STRONG_PASSWORD@localhost:5432/cryptoshop
 JWT_SECRET=RANDOM_64_CHAR_STRING_GENERATED_SECURELY
@@ -614,7 +614,7 @@ server {
 
     # Frontend
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:3002;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -627,7 +627,7 @@ server {
 
     # Backend API
     location /api {
-        proxy_pass http://localhost:5000;
+        proxy_pass http://localhost:3001;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -717,11 +717,11 @@ crontab -e
 # Check if PostgreSQL is running
 sudo systemctl status postgresql
 
-# Check if port 5000 is already in use
-sudo lsof -i :5000
+# Check if port 3001 is already in use
+sudo lsof -i :3001
 
-# Kill process on port 5000 if needed
-sudo kill -9 $(sudo lsof -t -i:5000)
+# Kill process on port 3001 if needed
+sudo kill -9 $(sudo lsof -t -i:3001)
 
 # Check backend logs
 cd backend
@@ -761,7 +761,7 @@ npm run build
 
 2. **Test webhook manually:**
    ```bash
-   curl -X POST http://localhost:5000/api/webhook/oxapay \
+   curl -X POST http://localhost:3001/api/webhook/oxapay \
      -H "Content-Type: application/json" \
      -d '{"trackId":"test123","orderid":"test-order","status":"Paid"}'
    ```
