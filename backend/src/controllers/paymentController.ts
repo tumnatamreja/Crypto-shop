@@ -5,15 +5,19 @@ import { createStaticAddress } from '../services/oxapayService';
 
 export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
-    const { items, promoCode, city, district } = req.body; // Array of { productId, quantity }
+    const { items, promoCode, city_id, district_id, city, district } = req.body; // Array of { productId, quantity }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Invalid cart items' });
     }
 
-    // Validate location fields
-    if (!city || !district) {
-      return res.status(400).json({ error: 'City and district are required' });
+    // Validate location fields - support both ID-based and text-based for backward compatibility
+    if (!city_id && !city) {
+      return res.status(400).json({ error: 'City is required' });
+    }
+
+    if (!district_id && !district) {
+      return res.status(400).json({ error: 'District is required' });
     }
 
     // Get product details
@@ -110,9 +114,22 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
 
     // Create order with location and promo fields
     const orderResult = await query(
-      `INSERT INTO orders (user_id, total_amount, subtotal, discount_amount, promo_code, currency, status, delivery_status, city, district)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [req.user!.id, totalAmount, subtotal, discountAmount, finalPromoCode, currency, 'pending', 'pending', city, district]
+      `INSERT INTO orders (user_id, total_amount, subtotal, discount_amount, promo_code, currency, status, delivery_status, city_id, district_id, city, district)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+      [
+        req.user!.id,
+        totalAmount,
+        subtotal,
+        discountAmount,
+        finalPromoCode,
+        currency,
+        'pending',
+        'pending',
+        city_id || null,
+        district_id || null,
+        city || null,
+        district || null
+      ]
     );
 
     const order = orderResult.rows[0];

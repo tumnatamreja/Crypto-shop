@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getProduct, createCheckout, getProductPriceTiers } from '@/lib/api';
+import { getProduct, createCheckout, getProductPriceTiers, getCities, getDistricts } from '@/lib/api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -22,6 +22,18 @@ interface PriceTier {
   price: number;
 }
 
+interface City {
+  id: string;
+  name: string;
+  name_en: string | null;
+}
+
+interface District {
+  id: string;
+  name: string;
+  name_en: string | null;
+}
+
 export default function OrderPage() {
   const params = useParams();
   const router = useRouter();
@@ -29,18 +41,31 @@ export default function OrderPage() {
 
   const [product, setProduct] = useState<Product | null>(null);
   const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
+  const [cities, setCities] = useState<City[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingDistricts, setLoadingDistricts] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Form state
   const [quantity, setQuantity] = useState(1);
-  const [city, setCity] = useState('');
-  const [district, setDistrict] = useState('');
+  const [selectedCityId, setSelectedCityId] = useState('');
+  const [selectedDistrictId, setSelectedDistrictId] = useState('');
   const [promoCode, setPromoCode] = useState('');
 
   useEffect(() => {
     loadProductData();
+    loadCities();
   }, [productId]);
+
+  useEffect(() => {
+    if (selectedCityId) {
+      loadDistricts(selectedCityId);
+    } else {
+      setDistricts([]);
+      setSelectedDistrictId('');
+    }
+  }, [selectedCityId]);
 
   const loadProductData = async () => {
     try {
@@ -60,6 +85,29 @@ export default function OrderPage() {
     }
   };
 
+  const loadCities = async () => {
+    try {
+      const response = await getCities();
+      setCities(response.data);
+    } catch (error) {
+      console.error('Error loading cities:', error);
+    }
+  };
+
+  const loadDistricts = async (cityId: string) => {
+    try {
+      setLoadingDistricts(true);
+      setSelectedDistrictId(''); // Reset district selection
+      const response = await getDistricts(cityId);
+      setDistricts(response.data);
+    } catch (error) {
+      console.error('Error loading districts:', error);
+      setDistricts([]);
+    } finally {
+      setLoadingDistricts(false);
+    }
+  };
+
   const getCurrentPrice = () => {
     if (!product) return 0;
 
@@ -76,8 +124,13 @@ export default function OrderPage() {
     if (!product) return;
 
     // Validate required fields
-    if (!city.trim() || !district.trim()) {
-      alert('Please enter both city and district for delivery');
+    if (!selectedCityId) {
+      alert('Please select a city for delivery');
+      return;
+    }
+
+    if (!selectedDistrictId) {
+      alert('Please select a district for delivery');
       return;
     }
 
@@ -86,8 +139,8 @@ export default function OrderPage() {
 
       const response = await createCheckout(
         [{ productId: product.id, quantity }],
-        city.trim(),
-        district.trim(),
+        selectedCityId,
+        selectedDistrictId,
         promoCode.trim() || undefined
       );
 
@@ -232,29 +285,46 @@ export default function OrderPage() {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                      City *
+                      City / Град *
                     </label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      placeholder="Enter your city"
+                    <select
+                      value={selectedCityId}
+                      onChange={(e) => setSelectedCityId(e.target.value)}
                       className="cyber-input"
                       required
-                    />
+                    >
+                      <option value="">Select city / Избери град</option>
+                      {cities.map((city) => (
+                        <option key={city.id} value={city.id}>
+                          {city.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
-                      District / Area *
+                      District / Квартал *
                     </label>
-                    <input
-                      type="text"
-                      value={district}
-                      onChange={(e) => setDistrict(e.target.value)}
-                      placeholder="Enter your district or area"
+                    <select
+                      value={selectedDistrictId}
+                      onChange={(e) => setSelectedDistrictId(e.target.value)}
                       className="cyber-input"
+                      disabled={!selectedCityId || loadingDistricts}
                       required
-                    />
+                    >
+                      <option value="">
+                        {!selectedCityId
+                          ? 'First select city / Първо избери град'
+                          : loadingDistricts
+                          ? 'Loading... / Зареждане...'
+                          : 'Select district / Избери квартал'}
+                      </option>
+                      {districts.map((district) => (
+                        <option key={district.id} value={district.id}>
+                          {district.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -276,7 +346,7 @@ export default function OrderPage() {
               {/* Checkout Button */}
               <button
                 onClick={handleCheckout}
-                disabled={submitting || !city.trim() || !district.trim()}
+                disabled={submitting || !selectedCityId || !selectedDistrictId}
                 className="cyber-button w-full text-lg py-4"
               >
                 {submitting ? (
