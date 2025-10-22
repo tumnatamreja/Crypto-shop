@@ -229,22 +229,34 @@ export default function PaymentPage() {
     try {
       setLoading(true);
 
-      // Create static address via OxaPay API
+      // Create White Label payment via OxaPay API (NEW - Correct Implementation)
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_API_URL}/api/payment/create-static-address`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/payment/create-white-label`,
         {
           orderId,
-          currency,
-          network,
+          payCurrency: currency, // What customer pays with (BTC, USDT, ETH, etc)
+          network, // TRC20, ERC20, BEP20, etc
         }
       );
 
-      setPaymentAddress(response.data.address);
+      // Response from OxaPay White Label:
+      // {
+      //   trackId: "xxx",
+      //   payAmount: "0.00123", // Exact crypto amount
+      //   payAddress: "1Bv...",  // Payment address
+      //   qrCode: "https://...", // QR code URL
+      //   payCurrency: "USDT",
+      //   network: "TRC20"
+      // }
+
+      setTrackId(response.data.trackId);
+      setPaymentAddress(response.data.payAddress);
       setQrCodeUrl(response.data.qrCode);
+      setAmount(parseFloat(response.data.payAmount) || amount); // Update with exact crypto amount
       setShowCurrencySelect(false);
     } catch (error: any) {
-      console.error('Error creating payment address:', error);
-      alert(error.response?.data?.error || 'Failed to create payment address');
+      console.error('Error creating payment:', error);
+      alert(error.response?.data?.error || error.response?.data?.message || 'Failed to create payment');
     } finally {
       setLoading(false);
     }
@@ -408,10 +420,20 @@ export default function PaymentPage() {
                     <div className="p-4 bg-neon-red/10 border border-neon-red rounded-lg">
                       <div className="text-sm text-gray-300 mb-1">Amount to Pay:</div>
                       <div className="price-tag text-2xl">
-                        €{amount.toFixed(2)}
+                        {paymentAddress ? (
+                          // Show crypto amount after address is generated
+                          <>{amount} {selectedCurrency}</>
+                        ) : (
+                          // Show EUR amount before address generation
+                          <>€{amount.toFixed(2)}</>
+                        )}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
-                        Pay equivalent in {selectedCurrency}
+                        {paymentAddress ? (
+                          `Exact amount in ${selectedCurrency} on ${getSelectedCurrencyData()?.networks.find(n => n.network === selectedNetwork)?.displayName}`
+                        ) : (
+                          `Original order: €${order?.total_amount?.toFixed(2)}`
+                        )}
                       </div>
                     </div>
 
@@ -463,10 +485,14 @@ export default function PaymentPage() {
                 <div className="p-4 bg-neon-red/5 border border-neon-red/30 rounded-lg">
                   <h4 className="font-bold text-neon-red mb-2">Instructions:</h4>
                   <ol className="text-sm space-y-1 text-gray-300 list-decimal list-inside">
-                    <li>Send exactly €{amount.toFixed(2)} worth of {selectedCurrency}</li>
+                    <li>
+                      Send exactly <strong>{amount} {selectedCurrency}</strong>
+                      {!paymentAddress && ` (€${order?.total_amount?.toFixed(2)} equivalent)`}
+                    </li>
                     <li>To the address above</li>
                     <li>Using {getSelectedCurrencyData()?.networks.find(n => n.network === selectedNetwork)?.displayName} network</li>
                     <li>Wait for confirmation (usually 1-10 minutes)</li>
+                    <li className="text-yellow-500 font-medium">⚠️ Send ONLY on {getSelectedCurrencyData()?.networks.find(n => n.network === selectedNetwork)?.displayName} network - wrong network = lost funds!</li>
                   </ol>
                 </div>
               </div>

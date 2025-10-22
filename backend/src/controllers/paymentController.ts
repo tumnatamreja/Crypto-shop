@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../types';
-import { createStaticAddress } from '../services/oxapayService';
+import { createWhiteLabelPayment } from '../services/oxapayService';
 
 export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
@@ -279,16 +279,16 @@ export const handleWebhook = async (req: Request, res: Response) => {
   }
 };
 
-// Create static payment address for white-label payment page
-export const createStaticAddressHandler = async (req: AuthRequest, res: Response) => {
+// Create White Label payment (NEW - Correct OxaPay Implementation)
+export const createWhiteLabelPaymentHandler = async (req: AuthRequest, res: Response) => {
   try {
-    const { orderId, currency, network } = req.body;
+    const { orderId, payCurrency, network } = req.body;
 
-    if (!orderId || !currency) {
-      return res.status(400).json({ error: 'Order ID and currency are required' });
+    if (!orderId || !payCurrency || !network) {
+      return res.status(400).json({ error: 'Order ID, pay currency, and network are required' });
     }
 
-    console.log('Creating static address:', { orderId, currency, network });
+    console.log('Creating white label payment:', { orderId, payCurrency, network });
 
     // Get order details
     const orderResult = await query(
@@ -302,32 +302,39 @@ export const createStaticAddressHandler = async (req: AuthRequest, res: Response
 
     const order = orderResult.rows[0];
 
-    // Create static address via OxaPay
-    const staticAddress = await createStaticAddress(
+    // Create White Label payment via OxaPay
+    // amount: order total in EUR
+    // currency: EUR (price currency)
+    // payCurrency: What customer pays with (BTC, USDT, ETH, etc)
+    // network: TRC20, ERC20, BEP20, etc
+    const payment = await createWhiteLabelPayment(
       parseFloat(order.total_amount),
-      currency,
-      network || currency,
+      'EUR', // Always EUR for our products
+      payCurrency,
+      network,
       orderId
     );
 
-    // Update order with payment details
+    // Update order with payment tracking info
     await query(
-      'UPDATE orders SET payment_id = $1, currency = $2 WHERE id = $3',
-      [staticAddress.trackId || staticAddress.address, currency, orderId]
+      'UPDATE orders SET payment_id = $1 WHERE id = $2',
+      [payment.trackId, orderId]
     );
 
     res.json({
-      address: staticAddress.address,
-      qrCode: staticAddress.qrCode,
-      amount: order.total_amount,
-      currency: currency,
-      network: network || currency,
+      trackId: payment.trackId,
+      payAmount: payment.payAmount, // Exact crypto amount to pay
+      payAddress: payment.payAddress, // Payment address
+      qrCode: payment.qrCode, // QR code URL from OxaPay
+      payCurrency: payCurrency,
+      network: network,
+      message: payment.message
     });
   } catch (error: any) {
-    console.error('Create static address error:', error);
+    console.error('Create white label payment error:', error);
     console.error('Error details:', error.response?.data || error.message);
     res.status(500).json({
-      error: 'Failed to create payment address',
+      error: 'Failed to create payment',
       message: error.response?.data?.message || error.message
     });
   }

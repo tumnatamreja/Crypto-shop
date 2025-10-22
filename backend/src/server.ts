@@ -46,7 +46,7 @@ app.get('/api/orders/:id', authenticateToken, orderController.getOrderById);
 
 // Payment routes (with anti-spam protection)
 app.post('/api/checkout', authenticateToken, antiSpam, paymentController.createCheckout);
-app.post('/api/payment/create-static-address', authenticateToken, paymentController.createStaticAddressHandler);
+app.post('/api/payment/create-white-label', authenticateToken, paymentController.createWhiteLabelPaymentHandler);
 app.post('/api/webhook/oxapay', paymentController.handleWebhook);
 
 // Admin routes
