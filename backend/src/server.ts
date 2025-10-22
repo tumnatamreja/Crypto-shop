@@ -11,6 +11,7 @@ import * as adminController from './controllers/adminController';
 import * as chatController from './controllers/chatController';
 import * as referralController from './controllers/referralController';
 import * as promoCodeController from './controllers/promoCodeController';
+import * as locationController from './controllers/locationController';
 
 dotenv.config();
 
@@ -45,7 +46,7 @@ app.get('/api/orders/:id', authenticateToken, orderController.getOrderById);
 
 // Payment routes (with anti-spam protection)
 app.post('/api/checkout', authenticateToken, antiSpam, paymentController.createCheckout);
-app.post('/api/payment/create-static-address', authenticateToken, paymentController.createStaticAddressHandler);
+app.post('/api/payment/create-white-label', authenticateToken, paymentController.createWhiteLabelPaymentHandler);
 app.post('/api/webhook/oxapay', paymentController.handleWebhook);
 
 // Admin routes
@@ -100,6 +101,25 @@ app.post('/api/admin/promo', authenticateToken, requireAdmin, promoCodeControlle
 app.get('/api/admin/promo', authenticateToken, requireAdmin, promoCodeController.getAllPromoCodes);
 app.put('/api/admin/promo/:id', authenticateToken, requireAdmin, promoCodeController.updatePromoCode);
 app.delete('/api/admin/promo/:id', authenticateToken, requireAdmin, promoCodeController.deletePromoCode);
+
+// Location routes (public - cities and districts)
+app.get('/api/locations/cities', locationController.getCities);
+app.get('/api/locations/cities/:cityId/districts', locationController.getDistrictsByCity);
+
+// Location routes for products (public)
+app.get('/api/locations/products/:productId/cities', locationController.getProductCities);
+app.get('/api/locations/products/:productId/cities/:cityId/districts', locationController.getProductDistricts);
+
+// Location routes (admin only)
+app.get('/api/admin/cities', authenticateToken, requireAdmin, locationController.getAllCitiesAdmin);
+app.post('/api/admin/cities', authenticateToken, requireAdmin, locationController.createCity);
+app.put('/api/admin/cities/:id', authenticateToken, requireAdmin, locationController.updateCity);
+app.delete('/api/admin/cities/:id', authenticateToken, requireAdmin, locationController.deleteCity);
+
+app.get('/api/admin/districts', authenticateToken, requireAdmin, locationController.getAllDistrictsAdmin);
+app.post('/api/admin/districts', authenticateToken, requireAdmin, locationController.createDistrict);
+app.put('/api/admin/districts/:id', authenticateToken, requireAdmin, locationController.updateDistrict);
+app.delete('/api/admin/districts/:id', authenticateToken, requireAdmin, locationController.deleteDistrict);
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

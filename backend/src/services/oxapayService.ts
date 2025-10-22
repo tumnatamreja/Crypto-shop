@@ -3,6 +3,78 @@ import { OxaPayInvoice } from '../types';
 
 const OXAPAY_API_URL = 'https://api.oxapay.com/v1';
 
+// White Label Payment API (NEW - Correct Implementation)
+export const createWhiteLabelPayment = async (
+  amount: number,
+  currency: string,
+  payCurrency: string,
+  network: string,
+  orderId: string
+): Promise<any> => {
+  try {
+    const payload = {
+      amount: amount,
+      currency: currency, // EUR
+      pay_currency: payCurrency, // BTC, USDT, ETH, TRX, etc
+      network: network, // TRC20, ERC20, BEP20, etc
+      lifetime: 120, // 2 hours
+      fee_paid_by_payer: 1,
+      under_paid_coverage: 20,
+      order_id: orderId,
+      description: `CryptoShop Order #${orderId.slice(0, 8)}`
+    };
+
+    console.log('OxaPay White Label Request:', {
+      url: `${OXAPAY_API_URL}/payment/white-label`,
+      payload,
+      apiKey: process.env.OXAPAY_API_KEY ? '***SET***' : '***MISSING***'
+    });
+
+    const response = await axios.post(
+      `${OXAPAY_API_URL}/payment/white-label`,
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'merchant_api_key': process.env.OXAPAY_API_KEY || ''
+        }
+      }
+    );
+
+    console.log('OxaPay White Label Response:', response.data);
+
+    // Expected response format:
+    // {
+    //   result: 100,
+    //   trackId: "xxx",
+    //   payAmount: "0.00123",
+    //   payAddress: "1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2",
+    //   qrCode: "https://...",
+    //   message: "OK"
+    // }
+
+    if (response.data && response.data.result === 100) {
+      return {
+        trackId: response.data.trackId,
+        payAmount: response.data.payAmount,
+        payAddress: response.data.payAddress,
+        qrCode: response.data.qrCode,
+        message: response.data.message
+      };
+    } else {
+      const errorMsg = response.data?.message || response.data?.error || 'Unknown error';
+      console.error('OxaPay White Label failed:', response.data);
+      throw new Error(`Failed to create white label payment: ${errorMsg}`);
+    }
+  } catch (error: any) {
+    console.error('OxaPay White Label error:', error.response?.data || error.message);
+    if (error.response?.data) {
+      console.error('Full error response:', JSON.stringify(error.response.data, null, 2));
+    }
+    throw new Error('Payment provider error: ' + (error.response?.data?.message || error.message));
+  }
+};
+
 export const createInvoice = async (
   amount: number,
   currency: string,
