@@ -321,3 +321,187 @@ export const deleteDistrict = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to delete district' });
   }
 };
+
+// ============================================================
+// PRODUCT LOCATION MANAGEMENT (ADMIN)
+// ============================================================
+
+// Get product's available cities
+export const getProductAvailableCities = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId } = req.params;
+
+    const result = await query(
+      `SELECT c.id, c.name, c.name_en, pac.is_active
+       FROM cities c
+       INNER JOIN product_available_cities pac ON c.id = pac.city_id
+       WHERE pac.product_id = $1
+       ORDER BY c.sort_order, c.name`,
+      [productId]
+    );
+
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error fetching product cities:', error);
+    res.status(500).json({ error: 'Failed to fetch product cities' });
+  }
+};
+
+// Get product's available districts for a city
+export const getProductAvailableDistricts = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, cityId } = req.params;
+
+    const result = await query(
+      `SELECT d.id, d.name, d.name_en, pad.is_active
+       FROM districts d
+       INNER JOIN product_available_districts pad ON d.id = pad.district_id
+       WHERE pad.product_id = $1 AND pad.city_id = $2
+       ORDER BY d.sort_order, d.name`,
+      [productId, cityId]
+    );
+
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error fetching product districts:', error);
+    res.status(500).json({ error: 'Failed to fetch product districts' });
+  }
+};
+
+// Add city to product
+export const addCityToProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, cityId } = req.body;
+
+    if (!productId || !cityId) {
+      return res.status(400).json({ error: 'Product ID and City ID are required' });
+    }
+
+    // Insert or activate
+    await query(
+      `INSERT INTO product_available_cities (product_id, city_id, is_active)
+       VALUES ($1, $2, true)
+       ON CONFLICT (product_id, city_id)
+       DO UPDATE SET is_active = true`,
+      [productId, cityId]
+    );
+
+    res.json({ message: 'City added to product successfully' });
+  } catch (error: any) {
+    console.error('Error adding city to product:', error);
+    res.status(500).json({ error: 'Failed to add city to product' });
+  }
+};
+
+// Remove city from product
+export const removeCityFromProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, cityId } = req.params;
+
+    // Soft delete (deactivate)
+    await query(
+      'UPDATE product_available_cities SET is_active = false WHERE product_id = $1 AND city_id = $2',
+      [productId, cityId]
+    );
+
+    // Also deactivate all districts for this city
+    await query(
+      'UPDATE product_available_districts SET is_active = false WHERE product_id = $1 AND city_id = $2',
+      [productId, cityId]
+    );
+
+    res.json({ message: 'City removed from product successfully' });
+  } catch (error: any) {
+    console.error('Error removing city from product:', error);
+    res.status(500).json({ error: 'Failed to remove city from product' });
+  }
+};
+
+// Add district to product
+export const addDistrictToProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, cityId, districtId } = req.body;
+
+    if (!productId || !cityId || !districtId) {
+      return res.status(400).json({ error: 'Product ID, City ID, and District ID are required' });
+    }
+
+    // Insert or activate
+    await query(
+      `INSERT INTO product_available_districts (product_id, city_id, district_id, is_active)
+       VALUES ($1, $2, $3, true)
+       ON CONFLICT (product_id, district_id)
+       DO UPDATE SET is_active = true`,
+      [productId, cityId, districtId]
+    );
+
+    res.json({ message: 'District added to product successfully' });
+  } catch (error: any) {
+    console.error('Error adding district to product:', error);
+    res.status(500).json({ error: 'Failed to add district to product' });
+  }
+};
+
+// Remove district from product
+export const removeDistrictFromProduct = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, districtId } = req.params;
+
+    // Soft delete (deactivate)
+    await query(
+      'UPDATE product_available_districts SET is_active = false WHERE product_id = $1 AND district_id = $2',
+      [productId, districtId]
+    );
+
+    res.json({ message: 'District removed from product successfully' });
+  } catch (error: any) {
+    console.error('Error removing district from product:', error);
+    res.status(500).json({ error: 'Failed to remove district from product' });
+  }
+};
+
+// Bulk update product locations
+export const bulkUpdateProductLocations = async (req: AuthRequest, res: Response) => {
+  try {
+    const { productId, cities, districts } = req.body;
+
+    if (!productId) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    // Deactivate all current locations
+    await query('UPDATE product_available_cities SET is_active = false WHERE product_id = $1', [productId]);
+    await query('UPDATE product_available_districts SET is_active = false WHERE product_id = $1', [productId]);
+
+    // Add/activate selected cities
+    if (cities && Array.isArray(cities)) {
+      for (const cityId of cities) {
+        await query(
+          `INSERT INTO product_available_cities (product_id, city_id, is_active)
+           VALUES ($1, $2, true)
+           ON CONFLICT (product_id, city_id)
+           DO UPDATE SET is_active = true`,
+          [productId, cityId]
+        );
+      }
+    }
+
+    // Add/activate selected districts
+    if (districts && Array.isArray(districts)) {
+      for (const district of districts) {
+        await query(
+          `INSERT INTO product_available_districts (product_id, city_id, district_id, is_active)
+           VALUES ($1, $2, $3, true)
+           ON CONFLICT (product_id, district_id)
+           DO UPDATE SET is_active = true`,
+          [productId, district.cityId, district.districtId]
+        );
+      }
+    }
+
+    res.json({ message: 'Product locations updated successfully' });
+  } catch (error: any) {
+    console.error('Error updating product locations:', error);
+    res.status(500).json({ error: 'Failed to update product locations' });
+  }
+};

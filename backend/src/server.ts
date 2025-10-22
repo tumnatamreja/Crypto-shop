@@ -121,6 +121,15 @@ app.post('/api/admin/districts', authenticateToken, requireAdmin, locationContro
 app.put('/api/admin/districts/:id', authenticateToken, requireAdmin, locationController.updateDistrict);
 app.delete('/api/admin/districts/:id', authenticateToken, requireAdmin, locationController.deleteDistrict);
 
+// Product location management (admin only)
+app.get('/api/admin/products/:productId/cities', authenticateToken, requireAdmin, locationController.getProductAvailableCities);
+app.get('/api/admin/products/:productId/cities/:cityId/districts', authenticateToken, requireAdmin, locationController.getProductAvailableDistricts);
+app.post('/api/admin/products/cities', authenticateToken, requireAdmin, locationController.addCityToProduct);
+app.delete('/api/admin/products/:productId/cities/:cityId', authenticateToken, requireAdmin, locationController.removeCityFromProduct);
+app.post('/api/admin/products/districts', authenticateToken, requireAdmin, locationController.addDistrictToProduct);
+app.delete('/api/admin/products/:productId/districts/:districtId', authenticateToken, requireAdmin, locationController.removeDistrictFromProduct);
+app.post('/api/admin/products/locations/bulk', authenticateToken, requireAdmin, locationController.bulkUpdateProductLocations);
+
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
