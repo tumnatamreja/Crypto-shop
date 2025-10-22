@@ -16,11 +16,11 @@ import * as locationController from './controllers/locationController';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3002',
   credentials: true
 }));
 app.use(express.json());
@@ -120,6 +120,15 @@ app.get('/api/admin/districts', authenticateToken, requireAdmin, locationControl
 app.post('/api/admin/districts', authenticateToken, requireAdmin, locationController.createDistrict);
 app.put('/api/admin/districts/:id', authenticateToken, requireAdmin, locationController.updateDistrict);
 app.delete('/api/admin/districts/:id', authenticateToken, requireAdmin, locationController.deleteDistrict);
+
+// Product location management (admin only)
+app.get('/api/admin/products/:productId/cities', authenticateToken, requireAdmin, locationController.getProductAvailableCities);
+app.get('/api/admin/products/:productId/cities/:cityId/districts', authenticateToken, requireAdmin, locationController.getProductAvailableDistricts);
+app.post('/api/admin/products/cities', authenticateToken, requireAdmin, locationController.addCityToProduct);
+app.delete('/api/admin/products/:productId/cities/:cityId', authenticateToken, requireAdmin, locationController.removeCityFromProduct);
+app.post('/api/admin/products/districts', authenticateToken, requireAdmin, locationController.addDistrictToProduct);
+app.delete('/api/admin/products/:productId/districts/:districtId', authenticateToken, requireAdmin, locationController.removeDistrictFromProduct);
+app.post('/api/admin/products/locations/bulk', authenticateToken, requireAdmin, locationController.bulkUpdateProductLocations);
 
 // Error handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

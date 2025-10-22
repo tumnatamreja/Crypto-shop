@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -98,8 +98,13 @@ export const deletePriceTier = (tierId: string) =>
   api.delete(`/api/admin/price-tiers/${tierId}`);
 
 // Admin - Orders
-export const getAdminOrders = () =>
-  api.get('/api/admin/orders');
+export const getAdminOrders = (statusFilter?: string, deliveryFilter?: string) =>
+  api.get('/api/admin/orders', {
+    params: {
+      status: statusFilter || undefined,
+      delivery_status: deliveryFilter || undefined
+    }
+  });
 
 export const updateOrderStatus = (id: string, status: string) =>
   api.put(`/api/admin/orders/${id}`, { status });
@@ -168,5 +173,56 @@ export const updatePromoCode = (id: string, data: any) =>
 
 export const deletePromoCode = (id: string) =>
   api.delete(`/api/admin/promo/${id}`);
+
+// Admin - Cities
+export const getAdminCities = () =>
+  api.get('/api/admin/cities');
+
+export const createCity = (data: { name: string; name_en?: string; sort_order?: number }) =>
+  api.post('/api/admin/cities', data);
+
+export const updateCity = (id: string, data: any) =>
+  api.put(`/api/admin/cities/${id}`, data);
+
+export const deleteCity = (id: string) =>
+  api.delete(`/api/admin/cities/${id}`);
+
+// Admin - Districts
+export const getAdminDistricts = () =>
+  api.get('/api/admin/districts');
+
+export const createDistrict = (data: { city_id: string; name: string; name_en?: string; sort_order?: number }) =>
+  api.post('/api/admin/districts', data);
+
+export const updateDistrict = (id: string, data: any) =>
+  api.put(`/api/admin/districts/${id}`, data);
+
+export const deleteDistrict = (id: string) =>
+  api.delete(`/api/admin/districts/${id}`);
+
+// Admin - Product Locations
+export const getProductAvailableCities = (productId: string) =>
+  api.get(`/api/admin/products/${productId}/cities`);
+
+export const getProductAvailableDistricts = (productId: string, cityId: string) =>
+  api.get(`/api/admin/products/${productId}/cities/${cityId}/districts`);
+
+export const addCityToProduct = (productId: string, cityId: string) =>
+  api.post('/api/admin/products/cities', { productId, cityId });
+
+export const removeCityFromProduct = (productId: string, cityId: string) =>
+  api.delete(`/api/admin/products/${productId}/cities/${cityId}`);
+
+export const addDistrictToProduct = (productId: string, cityId: string, districtId: string) =>
+  api.post('/api/admin/products/districts', { productId, cityId, districtId });
+
+export const removeDistrictFromProduct = (productId: string, districtId: string) =>
+  api.delete(`/api/admin/products/${productId}/districts/${districtId}`);
+
+export const bulkUpdateProductLocations = (
+  productId: string,
+  cities: string[],
+  districts: { cityId: string; districtId: string }[]
+) => api.post('/api/admin/products/locations/bulk', { productId, cities, districts });
 
 export default api;

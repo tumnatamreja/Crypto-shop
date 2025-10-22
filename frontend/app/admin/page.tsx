@@ -25,6 +25,11 @@ import {
   createPromoCode,
   updatePromoCode,
   deletePromoCode,
+  getAdminCities,
+  getAdminDistricts,
+  getProductAvailableCities,
+  getProductAvailableDistricts,
+  bulkUpdateProductLocations,
 } from '@/lib/api';
 
 type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'chat' | 'promos' | 'settings';
@@ -125,6 +130,23 @@ export default function AdminPanel() {
     quantity: 1,
   });
 
+  // Product Locations
+  const [allCities, setAllCities] = useState<any[]>([]);
+  const [allDistricts, setAllDistricts] = useState<any[]>([]);
+  const [selectedProductForLocations, setSelectedProductForLocations] = useState<string | null>(null);
+  const [productSelectedCities, setProductSelectedCities] = useState<string[]>([]);
+  const [productSelectedDistricts, setProductSelectedDistricts] = useState<{cityId: string; districtId: string}[]>([]);
+
+  // Product Price Tiers
+  const [selectedProductForPriceTiers, setSelectedProductForPriceTiers] = useState<string | null>(null);
+  const [priceTiers, setPriceTiers] = useState<any[]>([]);
+  const [showPriceTierForm, setShowPriceTierForm] = useState(false);
+  const [editingPriceTier, setEditingPriceTier] = useState<any | null>(null);
+  const [priceTierForm, setPriceTierForm] = useState({
+    quantity: '',
+    price: '',
+  });
+
   // Orders
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderStatusFilter, setOrderStatusFilter] = useState('');
@@ -184,8 +206,14 @@ export default function AdminPanel() {
         const res = await getDashboardStats();
         setStats(res.data);
       } else if (activeTab === 'products') {
-        const res = await getAdminProducts();
-        setProducts(res.data.products);
+        const [productsRes, citiesRes, districtsRes] = await Promise.all([
+          getAdminProducts(),
+          getAdminCities(),
+          getAdminDistricts()
+        ]);
+        setProducts(productsRes.data.products);
+        setAllCities(citiesRes.data);
+        setAllDistricts(districtsRes.data);
       } else if (activeTab === 'orders') {
         const res = await getAdminOrders(orderStatusFilter, orderDeliveryFilter);
         setOrders(res.data.orders);
@@ -263,6 +291,142 @@ export default function AdminPanel() {
       loadData();
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to delete product');
+    }
+  };
+
+  const handleManageLocations = async (productId: string) => {
+    try {
+      setSelectedProductForLocations(productId);
+
+      // Load existing product locations
+      const citiesRes = await getProductAvailableCities(productId);
+      const activeCities = citiesRes.data.filter((c: any) => c.is_active).map((c: any) => c.id);
+      setProductSelectedCities(activeCities);
+
+      // Load districts for each active city
+      const allProductDistricts = [];
+      for (const cityId of activeCities) {
+        const districtsRes = await getProductAvailableDistricts(productId, cityId);
+        const activeDistricts = districtsRes.data
+          .filter((d: any) => d.is_active)
+          .map((d: any) => ({ cityId, districtId: d.id }));
+        allProductDistricts.push(...activeDistricts);
+      }
+      setProductSelectedDistricts(allProductDistricts);
+    } catch (error) {
+      console.error('Error loading product locations:', error);
+    }
+  };
+
+  const handleToggleCity = (cityId: string) => {
+    if (productSelectedCities.includes(cityId)) {
+      // Remove city and its districts
+      setProductSelectedCities(productSelectedCities.filter(id => id !== cityId));
+      setProductSelectedDistricts(productSelectedDistricts.filter(d => d.cityId !== cityId));
+    } else {
+      // Add city
+      setProductSelectedCities([...productSelectedCities, cityId]);
+    }
+  };
+
+  const handleToggleDistrict = (cityId: string, districtId: string) => {
+    const exists = productSelectedDistricts.some(
+      d => d.cityId === cityId && d.districtId === districtId
+    );
+
+    if (exists) {
+      setProductSelectedDistricts(
+        productSelectedDistricts.filter(
+          d => !(d.cityId === cityId && d.districtId === districtId)
+        )
+      );
+    } else {
+      setProductSelectedDistricts([
+        ...productSelectedDistricts,
+        { cityId, districtId }
+      ]);
+    }
+  };
+
+  const handleSaveLocations = async () => {
+    if (!selectedProductForLocations) return;
+
+    try {
+      await bulkUpdateProductLocations(
+        selectedProductForLocations,
+        productSelectedCities,
+        productSelectedDistricts
+      );
+
+      alert('Product locations updated successfully!');
+      setSelectedProductForLocations(null);
+      setProductSelectedCities([]);
+      setProductSelectedDistricts([]);
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to update locations');
+    }
+  };
+
+  const handleManagePriceTiers = async (productId: string) => {
+    try {
+      setSelectedProductForPriceTiers(productId);
+      const res = await getProductPriceTiers(productId);
+      setPriceTiers(res.data.priceTiers || []);
+    } catch (error) {
+      console.error('Error loading price tiers:', error);
+      setPriceTiers([]);
+    }
+  };
+
+  const handlePriceTierSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductForPriceTiers) return;
+
+    try {
+      const quantity = parseInt(priceTierForm.quantity);
+      const price = parseFloat(priceTierForm.price);
+
+      if (editingPriceTier) {
+        await updatePriceTier(editingPriceTier.id, quantity, price);
+      } else {
+        await createPriceTier(selectedProductForPriceTiers, quantity, price);
+      }
+
+      // Reload price tiers
+      const res = await getProductPriceTiers(selectedProductForPriceTiers);
+      setPriceTiers(res.data.priceTiers || []);
+
+      // Reset form
+      setShowPriceTierForm(false);
+      setEditingPriceTier(null);
+      setPriceTierForm({ quantity: '', price: '' });
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to save price tier');
+    }
+  };
+
+  const handleEditPriceTier = (tier: any) => {
+    setEditingPriceTier(tier);
+    setPriceTierForm({
+      quantity: tier.quantity.toString(),
+      price: tier.price.toString(),
+    });
+    setShowPriceTierForm(true);
+  };
+
+  const handleDeletePriceTier = async (tierId: string) => {
+    if (!confirm('Are you sure you want to delete this price tier?')) return;
+
+    try {
+      await deletePriceTier(tierId);
+
+      // Reload price tiers
+      if (selectedProductForPriceTiers) {
+        const res = await getProductPriceTiers(selectedProductForPriceTiers);
+        setPriceTiers(res.data.priceTiers || []);
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to delete price tier');
     }
   };
 
@@ -829,6 +993,244 @@ export default function AdminPanel() {
                     </div>
                   )}
 
+                  {/* Location Manager */}
+                  {selectedProductForLocations && (
+                    <div className="cyber-card mb-6 border-2 border-neon-green">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-neon-cyan">
+                          Manage Delivery Locations
+                        </h2>
+                        <button
+                          onClick={() => {
+                            setSelectedProductForLocations(null);
+                            setProductSelectedCities([]);
+                            setProductSelectedDistricts([]);
+                          }}
+                          className="text-red-500 hover:underline"
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
+
+                      <p className="text-sm text-neon-cyan mb-4">
+                        Select which cities and districts this product is available for delivery.
+                      </p>
+
+                      <div className="space-y-4">
+                        {allCities.filter(c => c.is_active).map((city) => (
+                          <div key={city.id} className="border border-neon-green/30 rounded p-4">
+                            <div className="flex items-center gap-3 mb-3">
+                              <input
+                                type="checkbox"
+                                id={`city-${city.id}`}
+                                checked={productSelectedCities.includes(city.id)}
+                                onChange={() => handleToggleCity(city.id)}
+                                className="w-5 h-5 accent-neon-green"
+                              />
+                              <label
+                                htmlFor={`city-${city.id}`}
+                                className="text-lg font-bold text-neon-green cursor-pointer"
+                              >
+                                {city.name}
+                              </label>
+                            </div>
+
+                            {productSelectedCities.includes(city.id) && (
+                              <div className="ml-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                {allDistricts
+                                  .filter(d => d.city_id === city.id && d.is_active)
+                                  .map((district) => (
+                                    <div key={district.id} className="flex items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`district-${district.id}`}
+                                        checked={productSelectedDistricts.some(
+                                          d => d.cityId === city.id && d.districtId === district.id
+                                        )}
+                                        onChange={() => handleToggleDistrict(city.id, district.id)}
+                                        className="w-4 h-4 accent-neon-cyan"
+                                      />
+                                      <label
+                                        htmlFor={`district-${district.id}`}
+                                        className="text-sm cursor-pointer"
+                                      >
+                                        {district.name}
+                                      </label>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-6 flex gap-4">
+                        <button
+                          onClick={handleSaveLocations}
+                          className="cyber-button flex-1"
+                        >
+                          💾 Save Locations
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedProductForLocations(null);
+                            setProductSelectedCities([]);
+                            setProductSelectedDistricts([]);
+                          }}
+                          className="cyber-button flex-1 bg-red-500/20"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Price Tiers Manager */}
+                  {selectedProductForPriceTiers && (
+                    <div className="cyber-card mb-6 border-2 border-yellow-500">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-neon-cyan">
+                          Manage Price Tiers
+                        </h2>
+                        <button
+                          onClick={() => {
+                            setSelectedProductForPriceTiers(null);
+                            setPriceTiers([]);
+                            setShowPriceTierForm(false);
+                            setEditingPriceTier(null);
+                          }}
+                          className="text-red-500 hover:underline"
+                        >
+                          ✕ Close
+                        </button>
+                      </div>
+
+                      <p className="text-sm text-neon-cyan mb-4">
+                        Set different prices for different quantities. Higher quantities can have discounted prices.
+                      </p>
+
+                      {/* Add/Edit Price Tier Form */}
+                      {showPriceTierForm ? (
+                        <form onSubmit={handlePriceTierSubmit} className="mb-6 p-4 border border-neon-green/30 rounded">
+                          <h3 className="text-lg font-bold text-neon-cyan mb-3">
+                            {editingPriceTier ? 'Edit' : 'Add'} Price Tier
+                          </h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="block mb-2 text-neon-cyan text-sm">
+                                Quantity *
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={priceTierForm.quantity}
+                                onChange={(e) => setPriceTierForm({ ...priceTierForm, quantity: e.target.value })}
+                                className="cyber-input w-full"
+                                placeholder="e.g., 5"
+                                required
+                              />
+                            </div>
+                            <div>
+                              <label className="block mb-2 text-neon-cyan text-sm">
+                                Price (€) *
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={priceTierForm.price}
+                                onChange={(e) => setPriceTierForm({ ...priceTierForm, price: e.target.value })}
+                                className="cyber-input w-full"
+                                placeholder="e.g., 45.00"
+                                required
+                              />
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <button type="submit" className="cyber-button flex-1">
+                              {editingPriceTier ? 'Update' : 'Add'} Tier
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowPriceTierForm(false);
+                                setEditingPriceTier(null);
+                                setPriceTierForm({ quantity: '', price: '' });
+                              }}
+                              className="cyber-button flex-1 bg-red-500/20"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button
+                          onClick={() => setShowPriceTierForm(true)}
+                          className="cyber-button mb-6"
+                        >
+                          + Add Price Tier
+                        </button>
+                      )}
+
+                      {/* Price Tiers Table */}
+                      {priceTiers.length === 0 ? (
+                        <div className="text-center text-neon-cyan/60 py-8 border border-neon-green/30 rounded">
+                          No price tiers yet. Add one to enable quantity-based pricing.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full border border-neon-green/30">
+                            <thead>
+                              <tr className="border-b border-neon-green bg-neon-green/10">
+                                <th className="text-left p-3 text-neon-cyan">Quantity</th>
+                                <th className="text-left p-3 text-neon-cyan">Price per Unit</th>
+                                <th className="text-left p-3 text-neon-cyan">Total Price</th>
+                                <th className="text-left p-3 text-neon-cyan">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {priceTiers
+                                .sort((a, b) => a.quantity - b.quantity)
+                                .map((tier) => (
+                                  <tr key={tier.id} className="border-b border-neon-green/20">
+                                    <td className="p-3 font-bold text-neon-green">
+                                      {tier.quantity}x
+                                    </td>
+                                    <td className="p-3">
+                                      €{tier.price}
+                                    </td>
+                                    <td className="p-3 text-neon-cyan">
+                                      €{(tier.quantity * tier.price).toFixed(2)}
+                                    </td>
+                                    <td className="p-3">
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleEditPriceTier(tier)}
+                                          className="text-neon-cyan hover:underline text-sm"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeletePriceTier(tier.id)}
+                                          className="text-red-500 hover:underline text-sm"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      <div className="mt-4 p-3 bg-neon-cyan/10 rounded text-sm">
+                        <span className="text-neon-cyan font-bold">💡 Tip:</span> Customers will see these pricing options when ordering. Lower prices for higher quantities encourage bulk purchases!
+                      </div>
+                    </div>
+                  )}
+
                   <div className="cyber-card">
                     <h3 className="text-xl font-bold mb-4 text-neon-cyan">
                       All Products ({products.length})
@@ -875,12 +1277,24 @@ export default function AdminPanel() {
                                 </span>
                               </td>
                               <td className="p-2">
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
                                   <button
                                     onClick={() => handleEditProduct(product)}
                                     className="text-neon-cyan hover:underline text-sm"
                                   >
                                     Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleManageLocations(product.id)}
+                                    className="text-neon-green hover:underline text-sm"
+                                  >
+                                    Locations
+                                  </button>
+                                  <button
+                                    onClick={() => handleManagePriceTiers(product.id)}
+                                    className="text-yellow-500 hover:underline text-sm"
+                                  >
+                                    Price Tiers
                                   </button>
                                   <button
                                     onClick={() => handleDeleteProduct(product.id)}
