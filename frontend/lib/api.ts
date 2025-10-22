@@ -98,8 +98,13 @@ export const deletePriceTier = (tierId: string) =>
   api.delete(`/api/admin/price-tiers/${tierId}`);
 
 // Admin - Orders
-export const getAdminOrders = () =>
-  api.get('/api/admin/orders');
+export const getAdminOrders = (statusFilter?: string, deliveryFilter?: string) =>
+  api.get('/api/admin/orders', {
+    params: {
+      status: statusFilter || undefined,
+      delivery_status: deliveryFilter || undefined
+    }
+  });
 
 export const updateOrderStatus = (id: string, status: string) =>
   api.put(`/api/admin/orders/${id}`, { status });
