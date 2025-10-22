@@ -106,6 +106,10 @@ app.delete('/api/admin/promo/:id', authenticateToken, requireAdmin, promoCodeCon
 app.get('/api/locations/cities', locationController.getCities);
 app.get('/api/locations/cities/:cityId/districts', locationController.getDistrictsByCity);
 
+// Location routes for products (public)
+app.get('/api/locations/products/:productId/cities', locationController.getProductCities);
+app.get('/api/locations/products/:productId/cities/:cityId/districts', locationController.getProductDistricts);
+
 // Location routes (admin only)
 app.get('/api/admin/cities', authenticateToken, requireAdmin, locationController.getAllCitiesAdmin);
 app.post('/api/admin/cities', authenticateToken, requireAdmin, locationController.createCity);

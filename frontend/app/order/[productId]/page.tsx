@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getProduct, createCheckout, getProductPriceTiers, getCities, getDistricts } from '@/lib/api';
+import { getProduct, createCheckout, getProductPriceTiers, getProductCities, getProductDistricts } from '@/lib/api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -87,7 +87,7 @@ export default function OrderPage() {
 
   const loadCities = async () => {
     try {
-      const response = await getCities();
+      const response = await getProductCities(productId);
       setCities(response.data);
     } catch (error) {
       console.error('Error loading cities:', error);
@@ -98,7 +98,7 @@ export default function OrderPage() {
     try {
       setLoadingDistricts(true);
       setSelectedDistrictId(''); // Reset district selection
-      const response = await getDistricts(cityId);
+      const response = await getProductDistricts(productId, cityId);
       setDistricts(response.data);
     } catch (error) {
       console.error('Error loading districts:', error);

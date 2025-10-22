@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { query } from '../config/database';
 import { AuthRequest } from '../types';
 
-// Get all active cities
+// Get all active cities (global - for admin)
 export const getCities = async (req: Request, res: Response) => {
   try {
     const result = await query(
@@ -17,7 +17,34 @@ export const getCities = async (req: Request, res: Response) => {
   }
 };
 
-// Get districts for a specific city
+// Get available cities for a specific product
+export const getProductCities = async (req: Request, res: Response) => {
+  try {
+    const { productId } = req.params;
+
+    if (!productId) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    const result = await query(
+      `SELECT c.id, c.name, c.name_en
+       FROM cities c
+       INNER JOIN product_available_cities pac ON c.id = pac.city_id
+       WHERE pac.product_id = $1
+         AND pac.is_active = true
+         AND c.is_active = true
+       ORDER BY c.sort_order, c.name`,
+      [productId]
+    );
+
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error fetching product cities:', error);
+    res.status(500).json({ error: 'Failed to fetch product cities' });
+  }
+};
+
+// Get districts for a specific city (global - for admin)
 export const getDistrictsByCity = async (req: Request, res: Response) => {
   try {
     const { cityId } = req.params;
@@ -35,6 +62,34 @@ export const getDistrictsByCity = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error fetching districts:', error);
     res.status(500).json({ error: 'Failed to fetch districts' });
+  }
+};
+
+// Get available districts for a product in a specific city
+export const getProductDistricts = async (req: Request, res: Response) => {
+  try {
+    const { productId, cityId } = req.params;
+
+    if (!productId || !cityId) {
+      return res.status(400).json({ error: 'Product ID and City ID are required' });
+    }
+
+    const result = await query(
+      `SELECT d.id, d.name, d.name_en
+       FROM districts d
+       INNER JOIN product_available_districts pad ON d.id = pad.district_id
+       WHERE pad.product_id = $1
+         AND pad.city_id = $2
+         AND pad.is_active = true
+         AND d.is_active = true
+       ORDER BY d.sort_order, d.name`,
+      [productId, cityId]
+    );
+
+    res.json(result.rows);
+  } catch (error: any) {
+    console.error('Error fetching product districts:', error);
+    res.status(500).json({ error: 'Failed to fetch product districts' });
   }
 };
 

@@ -53,12 +53,19 @@ export const createCheckout = (
 ) =>
   api.post('/api/checkout', { items, city_id, district_id, promoCode });
 
-// Locations
+// Locations (global - for admin)
 export const getCities = () =>
   api.get('/api/locations/cities');
 
 export const getDistricts = (cityId: string) =>
   api.get(`/api/locations/cities/${cityId}/districts`);
+
+// Product-specific locations (for customers)
+export const getProductCities = (productId: string) =>
+  api.get(`/api/locations/products/${productId}/cities`);
+
+export const getProductDistricts = (productId: string, cityId: string) =>
+  api.get(`/api/locations/products/${productId}/cities/${cityId}/districts`);
 
 // Admin - Dashboard
 export const getDashboardStats = () =>
