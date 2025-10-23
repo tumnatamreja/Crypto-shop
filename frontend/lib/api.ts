@@ -97,6 +97,56 @@ export const updatePriceTier = (tierId: string, quantity: number, price: number)
 export const deletePriceTier = (tierId: string) =>
   api.delete(`/api/admin/price-tiers/${tierId}`);
 
+// Product Variants (Public - Customer)
+export const getProductVariants = (productId: string, cityId?: string) =>
+  api.get(`/api/products/${productId}/variants`, {
+    params: { cityId }
+  });
+
+export const checkVariantAvailability = (productId: string, variantId: string, cityId: string, amount?: number) =>
+  api.get(`/api/products/${productId}/variants/${variantId}/availability`, {
+    params: { cityId, amount }
+  });
+
+// Admin - Product Variants Management
+export const getAdminProductVariants = (productId: string) =>
+  api.get(`/api/admin/products/${productId}/variants`);
+
+export const createVariant = (productId: string, data: {
+  variantName: string;
+  variantType: 'гр' | 'бр';
+  amount: number;
+  price: number;
+  sortOrder?: number;
+}) => api.post(`/api/admin/products/${productId}/variants`, data);
+
+export const updateVariant = (variantId: string, data: {
+  variantName?: string;
+  variantType?: 'гр' | 'бр';
+  amount?: number;
+  price?: number;
+  isActive?: boolean;
+  sortOrder?: number;
+}) => api.put(`/api/admin/variants/${variantId}`, data);
+
+export const deleteVariant = (variantId: string) =>
+  api.delete(`/api/admin/variants/${variantId}`);
+
+// Admin - Variant Stock Management
+export const getVariantStock = (variantId: string) =>
+  api.get(`/api/admin/variants/${variantId}/stock`);
+
+export const updateVariantStock = (variantId: string, cityId: string, data: {
+  stockAmount?: number;
+  lowStockThreshold?: number;
+}) => api.put(`/api/admin/variants/${variantId}/stock/${cityId}`, data);
+
+export const bulkUpdateVariantStock = (variantId: string, stockUpdates: Array<{
+  cityId: string;
+  stockAmount: number;
+  lowStockThreshold?: number;
+}>) => api.post(`/api/admin/variants/${variantId}/stock/bulk`, { stockUpdates });
+
 // Admin - Orders
 export const getAdminOrders = (statusFilter?: string, deliveryFilter?: string) =>
   api.get('/api/admin/orders', {

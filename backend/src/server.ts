@@ -12,6 +12,7 @@ import * as chatController from './controllers/chatController';
 import * as referralController from './controllers/referralController';
 import * as promoCodeController from './controllers/promoCodeController';
 import * as locationController from './controllers/locationController';
+import * as productVariantController from './controllers/productVariantController';
 
 dotenv.config();
 
@@ -40,6 +41,10 @@ app.get('/api/auth/profile', authenticateToken, authController.getProfile);
 app.get('/api/products', productController.getAllProducts);
 app.get('/api/products/:id', productController.getProductById);
 
+// Product Variants routes (public - customer-facing)
+app.get('/api/products/:productId/variants', productVariantController.getProductVariants);
+app.get('/api/products/:productId/variants/:variantId/availability', productVariantController.checkVariantAvailability);
+
 // Order routes (authenticated)
 app.get('/api/orders', authenticateToken, orderController.getUserOrders);
 app.get('/api/orders/:id', authenticateToken, orderController.getOrderById);
@@ -63,6 +68,17 @@ app.get('/api/admin/products/:productId/price-tiers', authenticateToken, require
 app.post('/api/admin/products/:productId/price-tiers', authenticateToken, requireAdmin, adminController.createPriceTier);
 app.put('/api/admin/price-tiers/:tierId', authenticateToken, requireAdmin, adminController.updatePriceTier);
 app.delete('/api/admin/price-tiers/:tierId', authenticateToken, requireAdmin, adminController.deletePriceTier);
+
+// Admin - Product Variants Management
+app.get('/api/admin/products/:productId/variants', authenticateToken, requireAdmin, productVariantController.getAdminProductVariants);
+app.post('/api/admin/products/:productId/variants', authenticateToken, requireAdmin, productVariantController.createVariant);
+app.put('/api/admin/variants/:variantId', authenticateToken, requireAdmin, productVariantController.updateVariant);
+app.delete('/api/admin/variants/:variantId', authenticateToken, requireAdmin, productVariantController.deleteVariant);
+
+// Admin - Variant Stock Management
+app.get('/api/admin/variants/:variantId/stock', authenticateToken, requireAdmin, productVariantController.getVariantStock);
+app.put('/api/admin/variants/:variantId/stock/:cityId', authenticateToken, requireAdmin, productVariantController.updateVariantStock);
+app.post('/api/admin/variants/:variantId/stock/bulk', authenticateToken, requireAdmin, productVariantController.bulkUpdateVariantStock);
 
 // Admin - Orders
 app.get('/api/admin/orders', authenticateToken, requireAdmin, adminController.getAllOrders);

@@ -147,6 +147,20 @@ export default function AdminPanel() {
     price: '',
   });
 
+  // Product Variants & Stock
+  const [selectedProductForVariants, setSelectedProductForVariants] = useState<string | null>(null);
+  const [variants, setVariants] = useState<any[]>([]);
+  const [showVariantForm, setShowVariantForm] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<any | null>(null);
+  const [variantForm, setVariantForm] = useState({
+    variantName: '',
+    variantType: 'гр' as 'гр' | 'бр',
+    amount: '',
+    price: '',
+  });
+  const [selectedVariantForStock, setSelectedVariantForStock] = useState<string | null>(null);
+  const [variantStock, setVariantStock] = useState<any[]>([]);
+
   // Orders
   const [orders, setOrders] = useState<Order[]>([]);
   const [orderStatusFilter, setOrderStatusFilter] = useState('');
