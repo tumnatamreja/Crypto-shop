@@ -24,7 +24,15 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3002',
   credentials: true
 }));
-app.use(express.json());
+
+// Capture raw body for webhook HMAC verification
+app.use(express.json({
+  verify: (req: any, res, buf, encoding) => {
+    if (req.originalUrl === '/api/webhook/oxapay') {
+      req.rawBody = buf.toString(encoding as BufferEncoding || 'utf8');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Health check

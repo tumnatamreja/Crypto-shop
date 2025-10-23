@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { query } from '../config/database';
+import { query, transaction } from '../config/database';
 import { AuthRequest } from '../types';
 import { createWhiteLabelPayment } from '../services/oxapayService';
 
@@ -47,28 +47,37 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
 
       const variant = variantResult.rows[0];
 
-      // Check stock availability in selected city
+      // Check stock availability in selected city with row-level locking to prevent race conditions
       if (city_id) {
-        const stockResult = await query(
-          `SELECT (stock_amount - reserved_amount) as available_stock
-           FROM variant_stock
-           WHERE variant_id = $1 AND city_id = $2`,
-          [variantId, city_id]
-        );
+        await transaction(async (client) => {
+          // Lock the row for update to prevent concurrent checkouts from overselling
+          const stockResult = await client.query(
+            `SELECT stock_amount, reserved_amount, (stock_amount - reserved_amount) as available_stock
+             FROM variant_stock
+             WHERE variant_id = $1 AND city_id = $2
+             FOR UPDATE`,
+            [variantId, city_id]
+          );
 
-        if (stockResult.rows.length === 0 || parseFloat(stockResult.rows[0].available_stock) < quantity) {
-          return res.status(400).json({
-            error: `Insufficient stock for ${variant.variant_name}. Available: ${stockResult.rows[0]?.available_stock || 0}`
-          });
-        }
+          // Validate that variant is configured for this city
+          if (stockResult.rows.length === 0) {
+            throw new Error(`${variant.variant_name} is not available in the selected city`);
+          }
 
-        // Reserve stock
-        await query(
-          `UPDATE variant_stock
-           SET reserved_amount = reserved_amount + $1
-           WHERE variant_id = $2 AND city_id = $3`,
-          [quantity, variantId, city_id]
-        );
+          // Check sufficient stock
+          const availableStock = parseFloat(stockResult.rows[0].available_stock);
+          if (availableStock < quantity) {
+            throw new Error(`Insufficient stock for ${variant.variant_name}. Available: ${availableStock}`);
+          }
+
+          // Reserve stock (within transaction, so it's atomic)
+          await client.query(
+            `UPDATE variant_stock
+             SET reserved_amount = reserved_amount + $1
+             WHERE variant_id = $2 AND city_id = $3`,
+            [quantity, variantId, city_id]
+          );
+        });
       }
 
       currency = variant.currency || 'EUR';
@@ -198,11 +207,12 @@ export const handleWebhook = async (req: Request, res: Response) => {
     console.log('Full payload:', JSON.stringify(req.body, null, 2));
     console.log('Headers:', req.headers);
 
-    // Verify HMAC signature for security (optional but recommended)
+    // Verify HMAC signature for security (recommended for production)
     const hmacHeader = req.headers['hmac'] as string;
     if (hmacHeader && process.env.OXAPAY_API_KEY) {
       const crypto = require('crypto');
-      const rawBody = JSON.stringify(req.body);
+      // Use raw body captured by express middleware for accurate HMAC verification
+      const rawBody = (req as any).rawBody || JSON.stringify(req.body);
       const expectedHmac = crypto
         .createHmac('sha512', process.env.OXAPAY_API_KEY)
         .update(rawBody)
@@ -214,6 +224,7 @@ export const handleWebhook = async (req: Request, res: Response) => {
         console.error('Received:', hmacHeader);
         return res.status(403).send('ok'); // Still return 'ok' to avoid retries
       }
+      console.log('✓ HMAC signature verified successfully');
     }
 
     // OxaPay v1 uses 'orderid' (lowercase)
