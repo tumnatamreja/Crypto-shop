@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { query } from '../config/database';
-import { AuthRequest } from '../middleware/auth';
+import { AuthRequest } from '../types';
 
 // ============================================
 // PUBLIC ENDPOINTS - Customer-facing
