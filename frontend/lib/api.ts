@@ -46,7 +46,7 @@ export const getOrder = (id: string) =>
 
 // Checkout
 export const createCheckout = (
-  items: { productId: string; quantity: number }[],
+  items: { productId: string; variantId: string; quantity: number }[],
   city_id: string,
   district_id: string,
   promoCode?: string

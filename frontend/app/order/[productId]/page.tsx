@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getProduct, createCheckout, getProductPriceTiers, getProductCities, getProductDistricts } from '@/lib/api';
+import { getProduct, createCheckout, getProductVariants, getProductCities, getProductDistricts } from '@/lib/api';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 
@@ -14,12 +14,17 @@ interface Product {
   currency: string;
   picture_link: string;
   quantity: number;
+  variants?: Variant[];
 }
 
-interface PriceTier {
+interface Variant {
   id: string;
-  quantity: number;
+  name: string;
+  type: string;
+  amount: number;
   price: number;
+  availableStock?: number;
+  displayName: string;
 }
 
 interface City {
@@ -40,14 +45,16 @@ export default function OrderPage() {
   const productId = params.productId as string;
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [priceTiers, setPriceTiers] = useState<PriceTier[]>([]);
+  const [variants, setVariants] = useState<Variant[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Form state
+  const [selectedVariantId, setSelectedVariantId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [selectedCityId, setSelectedCityId] = useState('');
   const [selectedDistrictId, setSelectedDistrictId] = useState('');
@@ -61,27 +68,44 @@ export default function OrderPage() {
   useEffect(() => {
     if (selectedCityId) {
       loadDistricts(selectedCityId);
+      loadVariants(selectedCityId);
     } else {
       setDistricts([]);
       setSelectedDistrictId('');
+      setVariants([]);
+      setSelectedVariantId('');
     }
   }, [selectedCityId]);
 
   const loadProductData = async () => {
     try {
-      const [productResponse, priceTiersResponse] = await Promise.all([
-        getProduct(productId),
-        getProductPriceTiers(productId).catch(() => ({ data: [] }))
-      ]);
-
-      setProduct(productResponse.data);
-      setPriceTiers(priceTiersResponse.data || []);
+      const productResponse = await getProduct(productId);
+      setProduct(productResponse.data.product);
     } catch (error) {
       console.error('Error loading product:', error);
       alert('Product not found');
       router.push('/');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadVariants = async (cityId: string) => {
+    try {
+      setLoadingVariants(true);
+      setSelectedVariantId(''); // Reset variant selection
+      const response = await getProductVariants(productId, cityId);
+      setVariants(response.data.variants || []);
+
+      // Auto-select first variant if available
+      if (response.data.variants && response.data.variants.length > 0) {
+        setSelectedVariantId(response.data.variants[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading variants:', error);
+      setVariants([]);
+    } finally {
+      setLoadingVariants(false);
     }
   };
 
@@ -108,12 +132,16 @@ export default function OrderPage() {
     }
   };
 
-  const getCurrentPrice = () => {
-    if (!product) return 0;
+  const getSelectedVariant = () => {
+    return variants.find(v => v.id === selectedVariantId);
+  };
 
-    // Check if there's a price tier for current quantity
-    const tier = priceTiers.find(t => t.quantity === quantity);
-    return tier ? parseFloat(tier.price.toString()) : parseFloat(product.price.toString());
+  const getCurrentPrice = () => {
+    const variant = getSelectedVariant();
+    if (variant) {
+      return variant.price;
+    }
+    return product ? parseFloat(product.price.toString()) : 0;
   };
 
   const getTotalPrice = () => {
@@ -134,11 +162,16 @@ export default function OrderPage() {
       return;
     }
 
+    if (!selectedVariantId) {
+      alert('Please select a variant');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
       const response = await createCheckout(
-        [{ productId: product.id, quantity }],
+        [{ productId: product.id, variantId: selectedVariantId, quantity }],
         selectedCityId,
         selectedDistrictId,
         promoCode.trim() || undefined
@@ -221,65 +254,19 @@ export default function OrderPage() {
                 {product.description}
               </p>
 
-              {priceTiers.length > 0 && (
-                <div className="p-4 bg-neon-red/10 border border-neon-red/30 rounded-lg">
-                  <h3 className="font-bold text-neon-red mb-2">💰 Quantity Discounts:</h3>
-                  <div className="space-y-1 text-sm">
-                    {priceTiers.map(tier => (
-                      <div key={tier.id} className="text-gray-300">
-                        {tier.quantity}x = €{parseFloat(tier.price.toString()).toFixed(2)} each
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="p-4 bg-neon-red/10 border border-neon-red/30 rounded-lg">
+                <h3 className="font-bold text-neon-red mb-2">ℹ️ Product Info:</h3>
+                <p className="text-sm text-gray-300">
+                  Select your delivery location to see available variants and stock.
+                </p>
+              </div>
             </div>
 
             {/* Order Form */}
             <div className="cyber-card">
               <h2 className="text-2xl font-bold text-gradient mb-6">Place Order</h2>
 
-              {/* Price Display */}
-              <div className="mb-6 p-6 bg-gradient-to-br from-neon-red/10 to-neon-orange/10 border border-neon-red rounded-lg">
-                <div className="text-sm text-gray-400 mb-1">Price per item:</div>
-                <div className="price-tag text-3xl mb-3">
-                  €{getCurrentPrice().toFixed(2)}
-                </div>
-                <div className="text-sm text-gray-400 mb-1">Total:</div>
-                <div className="text-2xl font-bold text-neon-red">
-                  €{getTotalPrice().toFixed(2)}
-                </div>
-              </div>
-
-              {/* Quantity Selector */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Quantity
-                </label>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-12 h-12 bg-neon-red/20 border border-neon-red rounded-lg hover:bg-neon-red/30 transition-colors text-xl font-bold"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="cyber-input text-center font-bold text-xl"
-                  />
-                  <button
-                    onClick={() => setQuantity(quantity + 1)}
-                    className="w-12 h-12 bg-neon-red/20 border border-neon-red rounded-lg hover:bg-neon-red/30 transition-colors text-xl font-bold"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              {/* Delivery Location */}
+              {/* Delivery Location - FIRST (variants depend on city) */}
               <div className="mb-6">
                 <h3 className="text-lg font-bold text-neon-red mb-4">📍 Delivery Location</h3>
                 <div className="space-y-4">
@@ -329,6 +316,105 @@ export default function OrderPage() {
                 </div>
               </div>
 
+              {/* Variant Selector - appears after city selection */}
+              {selectedCityId && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Variant / Вариант *
+                  </label>
+                  {loadingVariants ? (
+                    <div className="cyber-input flex items-center justify-center">
+                      <span className="loading inline-block w-5 h-5 mr-2"></span>
+                      Loading variants...
+                    </div>
+                  ) : variants.length === 0 ? (
+                    <div className="p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400">
+                      ⚠️ No variants available in this city. Try another city.
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        value={selectedVariantId}
+                        onChange={(e) => setSelectedVariantId(e.target.value)}
+                        className="cyber-input"
+                        required
+                      >
+                        <option value="">Select variant / Избери вариант</option>
+                        {variants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.displayName}
+                            {variant.availableStock !== null && variant.availableStock !== undefined
+                              ? ` (Stock: ${variant.availableStock}${variant.type})`
+                              : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {selectedVariantId && getSelectedVariant() && (
+                        <div className="mt-2 p-3 bg-neon-green/10 border border-neon-green/30 rounded-lg">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-300">
+                              {getSelectedVariant()?.name} ({getSelectedVariant()?.amount}{getSelectedVariant()?.type})
+                            </span>
+                            <span className="font-bold text-neon-green">
+                              €{getSelectedVariant()?.price.toFixed(2)}
+                            </span>
+                          </div>
+                          {getSelectedVariant()?.availableStock !== null && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              Available: {getSelectedVariant()?.availableStock}{getSelectedVariant()?.type}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Quantity Selector */}
+              {selectedVariantId && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Quantity
+                  </label>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                      className="w-12 h-12 bg-neon-red/20 border border-neon-red rounded-lg hover:bg-neon-red/30 transition-colors text-xl font-bold"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quantity}
+                      onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="cyber-input text-center font-bold text-xl"
+                    />
+                    <button
+                      onClick={() => setQuantity(quantity + 1)}
+                      className="w-12 h-12 bg-neon-red/20 border border-neon-red rounded-lg hover:bg-neon-red/30 transition-colors text-xl font-bold"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Price Display */}
+              {selectedVariantId && (
+                <div className="mb-6 p-6 bg-gradient-to-br from-neon-red/10 to-neon-orange/10 border border-neon-red rounded-lg">
+                  <div className="text-sm text-gray-400 mb-1">Price per item:</div>
+                  <div className="price-tag text-3xl mb-3">
+                    €{getCurrentPrice().toFixed(2)}
+                  </div>
+                  <div className="text-sm text-gray-400 mb-1">Total:</div>
+                  <div className="text-2xl font-bold text-neon-red">
+                    €{getTotalPrice().toFixed(2)}
+                  </div>
+                </div>
+              )}
+
               {/* Promo Code */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -346,7 +432,7 @@ export default function OrderPage() {
               {/* Checkout Button */}
               <button
                 onClick={handleCheckout}
-                disabled={submitting || !selectedCityId || !selectedDistrictId}
+                disabled={submitting || !selectedCityId || !selectedDistrictId || !selectedVariantId}
                 className="cyber-button w-full text-lg py-4"
               >
                 {submitting ? (
@@ -354,6 +440,12 @@ export default function OrderPage() {
                     <span className="loading inline-block w-5 h-5"></span>
                     Processing...
                   </span>
+                ) : !selectedCityId ? (
+                  'Select City First'
+                ) : !selectedDistrictId ? (
+                  'Select District'
+                ) : !selectedVariantId ? (
+                  'Select Variant'
                 ) : (
                   'Proceed to Payment'
                 )}

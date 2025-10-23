@@ -137,15 +137,15 @@ export default function AdminPanel() {
   const [productSelectedCities, setProductSelectedCities] = useState<string[]>([]);
   const [productSelectedDistricts, setProductSelectedDistricts] = useState<{cityId: string; districtId: string}[]>([]);
 
-  // Product Price Tiers
-  const [selectedProductForPriceTiers, setSelectedProductForPriceTiers] = useState<string | null>(null);
-  const [priceTiers, setPriceTiers] = useState<any[]>([]);
-  const [showPriceTierForm, setShowPriceTierForm] = useState(false);
-  const [editingPriceTier, setEditingPriceTier] = useState<any | null>(null);
-  const [priceTierForm, setPriceTierForm] = useState({
-    quantity: '',
-    price: '',
-  });
+  // Product Price Tiers - DISABLED (will be replaced with variants system)
+  // const [selectedProductForPriceTiers, setSelectedProductForPriceTiers] = useState<string | null>(null);
+  // const [priceTiers, setPriceTiers] = useState<any[]>([]);
+  // const [showPriceTierForm, setShowPriceTierForm] = useState(false);
+  // const [editingPriceTier, setEditingPriceTier] = useState<any | null>(null);
+  // const [priceTierForm, setPriceTierForm] = useState({
+  //   quantity: '',
+  //   price: '',
+  // });
 
   // Product Variants & Stock
   const [selectedProductForVariants, setSelectedProductForVariants] = useState<string | null>(null);
@@ -381,68 +381,69 @@ export default function AdminPanel() {
     }
   };
 
-  const handleManagePriceTiers = async (productId: string) => {
-    try {
-      setSelectedProductForPriceTiers(productId);
-      const res = await getProductPriceTiers(productId);
-      setPriceTiers(res.data.priceTiers || []);
-    } catch (error) {
-      console.error('Error loading price tiers:', error);
-      setPriceTiers([]);
-    }
-  };
+  // Price tier functions - DISABLED (will be replaced with variants system)
+  // const handleManagePriceTiers = async (productId: string) => {
+  //   try {
+  //     setSelectedProductForPriceTiers(productId);
+  //     const res = await getProductPriceTiers(productId);
+  //     setPriceTiers(res.data.priceTiers || []);
+  //   } catch (error) {
+  //     console.error('Error loading price tiers:', error);
+  //     setPriceTiers([]);
+  //   }
+  // };
 
-  const handlePriceTierSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProductForPriceTiers) return;
+  // const handlePriceTierSubmit = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   if (!selectedProductForPriceTiers) return;
 
-    try {
-      const quantity = parseInt(priceTierForm.quantity);
-      const price = parseFloat(priceTierForm.price);
+  //   try {
+  //     const quantity = parseInt(priceTierForm.quantity);
+  //     const price = parseFloat(priceTierForm.price);
 
-      if (editingPriceTier) {
-        await updatePriceTier(editingPriceTier.id, quantity, price);
-      } else {
-        await createPriceTier(selectedProductForPriceTiers, quantity, price);
-      }
+  //     if (editingPriceTier) {
+  //       await updatePriceTier(editingPriceTier.id, quantity, price);
+  //     } else {
+  //       await createPriceTier(selectedProductForPriceTiers, quantity, price);
+  //     }
 
-      // Reload price tiers
-      const res = await getProductPriceTiers(selectedProductForPriceTiers);
-      setPriceTiers(res.data.priceTiers || []);
+  //     // Reload price tiers
+  //     const res = await getProductPriceTiers(selectedProductForPriceTiers);
+  //     setPriceTiers(res.data.priceTiers || []);
 
-      // Reset form
-      setShowPriceTierForm(false);
-      setEditingPriceTier(null);
-      setPriceTierForm({ quantity: '', price: '' });
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to save price tier');
-    }
-  };
+  //     // Reset form
+  //     setShowPriceTierForm(false);
+  //     setEditingPriceTier(null);
+  //     setPriceTierForm({ quantity: '', price: '' });
+  //   } catch (error: any) {
+  //     alert(error.response?.data?.error || 'Failed to save price tier');
+  //   }
+  // };
 
-  const handleEditPriceTier = (tier: any) => {
-    setEditingPriceTier(tier);
-    setPriceTierForm({
-      quantity: tier.quantity.toString(),
-      price: tier.price.toString(),
-    });
-    setShowPriceTierForm(true);
-  };
+  // const handleEditPriceTier = (tier: any) => {
+  //   setEditingPriceTier(tier);
+  //   setPriceTierForm({
+  //     quantity: tier.quantity.toString(),
+  //     price: tier.price.toString(),
+  //   });
+  //   setShowPriceTierForm(true);
+  // };
 
-  const handleDeletePriceTier = async (tierId: string) => {
-    if (!confirm('Are you sure you want to delete this price tier?')) return;
+  // const handleDeletePriceTier = async (tierId: string) => {
+  //   if (!confirm('Are you sure you want to delete this price tier?')) return;
 
-    try {
-      await deletePriceTier(tierId);
+  //   try {
+  //     await deletePriceTier(tierId);
 
-      // Reload price tiers
-      if (selectedProductForPriceTiers) {
-        const res = await getProductPriceTiers(selectedProductForPriceTiers);
-        setPriceTiers(res.data.priceTiers || []);
-      }
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Failed to delete price tier');
-    }
-  };
+  //     // Reload price tiers
+  //     if (selectedProductForPriceTiers) {
+  //       const res = await getProductPriceTiers(selectedProductForPriceTiers);
+  //       setPriceTiers(res.data.priceTiers || []);
+  //     }
+  //   } catch (error: any) {
+  //     alert(error.response?.data?.error || 'Failed to delete price tier');
+  //   }
+  // };
 
   const handleUpdateOrderStatus = async (orderId: string, status: string) => {
     try {
@@ -1099,151 +1100,7 @@ export default function AdminPanel() {
                     </div>
                   )}
 
-                  {/* Price Tiers Manager */}
-                  {selectedProductForPriceTiers && (
-                    <div className="cyber-card mb-6 border-2 border-yellow-500">
-                      <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-bold text-neon-cyan">
-                          Manage Price Tiers
-                        </h2>
-                        <button
-                          onClick={() => {
-                            setSelectedProductForPriceTiers(null);
-                            setPriceTiers([]);
-                            setShowPriceTierForm(false);
-                            setEditingPriceTier(null);
-                          }}
-                          className="text-red-500 hover:underline"
-                        >
-                          ✕ Close
-                        </button>
-                      </div>
-
-                      <p className="text-sm text-neon-cyan mb-4">
-                        Set different prices for different quantities. Higher quantities can have discounted prices.
-                      </p>
-
-                      {/* Add/Edit Price Tier Form */}
-                      {showPriceTierForm ? (
-                        <form onSubmit={handlePriceTierSubmit} className="mb-6 p-4 border border-neon-green/30 rounded">
-                          <h3 className="text-lg font-bold text-neon-cyan mb-3">
-                            {editingPriceTier ? 'Edit' : 'Add'} Price Tier
-                          </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <label className="block mb-2 text-neon-cyan text-sm">
-                                Quantity *
-                              </label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={priceTierForm.quantity}
-                                onChange={(e) => setPriceTierForm({ ...priceTierForm, quantity: e.target.value })}
-                                className="cyber-input w-full"
-                                placeholder="e.g., 5"
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label className="block mb-2 text-neon-cyan text-sm">
-                                Price (€) *
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={priceTierForm.price}
-                                onChange={(e) => setPriceTierForm({ ...priceTierForm, price: e.target.value })}
-                                className="cyber-input w-full"
-                                placeholder="e.g., 45.00"
-                                required
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <button type="submit" className="cyber-button flex-1">
-                              {editingPriceTier ? 'Update' : 'Add'} Tier
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowPriceTierForm(false);
-                                setEditingPriceTier(null);
-                                setPriceTierForm({ quantity: '', price: '' });
-                              }}
-                              className="cyber-button flex-1 bg-red-500/20"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <button
-                          onClick={() => setShowPriceTierForm(true)}
-                          className="cyber-button mb-6"
-                        >
-                          + Add Price Tier
-                        </button>
-                      )}
-
-                      {/* Price Tiers Table */}
-                      {priceTiers.length === 0 ? (
-                        <div className="text-center text-neon-cyan/60 py-8 border border-neon-green/30 rounded">
-                          No price tiers yet. Add one to enable quantity-based pricing.
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full border border-neon-green/30">
-                            <thead>
-                              <tr className="border-b border-neon-green bg-neon-green/10">
-                                <th className="text-left p-3 text-neon-cyan">Quantity</th>
-                                <th className="text-left p-3 text-neon-cyan">Price per Unit</th>
-                                <th className="text-left p-3 text-neon-cyan">Total Price</th>
-                                <th className="text-left p-3 text-neon-cyan">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {priceTiers
-                                .sort((a, b) => a.quantity - b.quantity)
-                                .map((tier) => (
-                                  <tr key={tier.id} className="border-b border-neon-green/20">
-                                    <td className="p-3 font-bold text-neon-green">
-                                      {tier.quantity}x
-                                    </td>
-                                    <td className="p-3">
-                                      €{tier.price}
-                                    </td>
-                                    <td className="p-3 text-neon-cyan">
-                                      €{(tier.quantity * tier.price).toFixed(2)}
-                                    </td>
-                                    <td className="p-3">
-                                      <div className="flex gap-2">
-                                        <button
-                                          onClick={() => handleEditPriceTier(tier)}
-                                          className="text-neon-cyan hover:underline text-sm"
-                                        >
-                                          Edit
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeletePriceTier(tier.id)}
-                                          className="text-red-500 hover:underline text-sm"
-                                        >
-                                          Delete
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-
-                      <div className="mt-4 p-3 bg-neon-cyan/10 rounded text-sm">
-                        <span className="text-neon-cyan font-bold">💡 Tip:</span> Customers will see these pricing options when ordering. Lower prices for higher quantities encourage bulk purchases!
-                      </div>
-                    </div>
-                  )}
+                  {/* Price Tiers Manager removed - will be replaced with variants system in Етап 4 */}
 
                   <div className="cyber-card">
                     <h3 className="text-xl font-bold mb-4 text-neon-cyan">
@@ -1304,12 +1161,14 @@ export default function AdminPanel() {
                                   >
                                     Locations
                                   </button>
+                                  {/* Price Tiers button - DISABLED
                                   <button
                                     onClick={() => handleManagePriceTiers(product.id)}
                                     className="text-yellow-500 hover:underline text-sm"
                                   >
                                     Price Tiers
                                   </button>
+                                  */}
                                   <button
                                     onClick={() => handleDeleteProduct(product.id)}
                                     className="text-red-500 hover:underline text-sm"
