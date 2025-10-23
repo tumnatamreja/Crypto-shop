@@ -5,13 +5,13 @@ import { createWhiteLabelPayment } from '../services/oxapayService';
 
 export const createCheckout = async (req: AuthRequest, res: Response) => {
   try {
-    const { items, promoCode, city_id, district_id, city, district } = req.body; // Array of { productId, quantity }
+    const { items, promoCode, city_id, district_id, city, district } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Invalid cart items' });
     }
 
-    // Validate location fields - support both ID-based and text-based for backward compatibility
+    // Validate location fields
     if (!city_id && !city) {
       return res.status(400).json({ error: 'City is required' });
     }
@@ -20,48 +20,72 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ error: 'District is required' });
     }
 
-    // Get product details
-    const productIds = items.map((item: any) => item.productId);
-    const products = await query(
-      'SELECT * FROM products WHERE id = ANY($1) AND is_active = true',
-      [productIds]
-    );
-
-    if (products.rows.length !== items.length) {
-      return res.status(400).json({ error: 'Some products are not available' });
-    }
-
-    // Calculate total (check for quantity-based pricing)
+    // Calculate total using VARIANTS (NEW)
     let subtotal = 0;
     let currency = 'EUR';
     const orderItems = [];
 
     for (const item of items) {
-      const product = products.rows.find((p: any) => p.id === item.productId);
-      if (!product) throw new Error('Product not found');
+      const { productId, variantId, quantity } = item;
 
-      currency = product.currency || 'EUR';
-      let itemPrice = parseFloat(product.price);
-      const quantity = item.quantity || 1;
-
-      // Check for quantity-based pricing
-      const priceTier = await query(
-        'SELECT price FROM product_price_tiers WHERE product_id = $1 AND quantity = $2',
-        [product.id, quantity]
-      );
-
-      if (priceTier.rows.length > 0) {
-        itemPrice = parseFloat(priceTier.rows[0].price);
+      if (!variantId) {
+        return res.status(400).json({ error: 'Variant is required for each item' });
       }
 
-      subtotal += itemPrice * quantity;
+      // Get variant details
+      const variantResult = await query(
+        `SELECT pv.*, p.name as product_name, p.picture_link, p.currency
+         FROM product_variants pv
+         JOIN products p ON pv.product_id = p.id
+         WHERE pv.id = $1 AND pv.is_active = true AND p.is_active = true`,
+        [variantId]
+      );
+
+      if (variantResult.rows.length === 0) {
+        return res.status(400).json({ error: 'Variant not found or inactive' });
+      }
+
+      const variant = variantResult.rows[0];
+
+      // Check stock availability in selected city
+      if (city_id) {
+        const stockResult = await query(
+          `SELECT (stock_amount - reserved_amount) as available_stock
+           FROM variant_stock
+           WHERE variant_id = $1 AND city_id = $2`,
+          [variantId, city_id]
+        );
+
+        if (stockResult.rows.length === 0 || parseFloat(stockResult.rows[0].available_stock) < quantity) {
+          return res.status(400).json({
+            error: `Insufficient stock for ${variant.variant_name}. Available: ${stockResult.rows[0]?.available_stock || 0}`
+          });
+        }
+
+        // Reserve stock
+        await query(
+          `UPDATE variant_stock
+           SET reserved_amount = reserved_amount + $1
+           WHERE variant_id = $2 AND city_id = $3`,
+          [quantity, variantId, city_id]
+        );
+      }
+
+      currency = variant.currency || 'EUR';
+      const itemPrice = parseFloat(variant.price);
+      const itemQuantity = quantity || 1;
+
+      subtotal += itemPrice * itemQuantity;
 
       orderItems.push({
-        product_id: product.id,
-        product_name: product.name,
-        product_picture: product.picture_link,
+        product_id: productId,
+        variant_id: variantId,
+        product_name: variant.product_name,
+        product_picture: variant.picture_link,
         product_price: itemPrice,
-        quantity: quantity
+        quantity: itemQuantity,
+        variant_name: variant.variant_name,
+        variant_amount: parseFloat(variant.amount)
       });
     }
 
@@ -112,7 +136,7 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
 
     const totalAmount = subtotal - discountAmount;
 
-    // Create order with location and promo fields
+    // Create order
     const orderResult = await query(
       `INSERT INTO orders (user_id, total_amount, subtotal, discount_amount, promo_code, currency, status, delivery_status, city_id, district_id, city, district)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
@@ -134,16 +158,16 @@ export const createCheckout = async (req: AuthRequest, res: Response) => {
 
     const order = orderResult.rows[0];
 
-    // Create order items
+    // Create order items with variant info
     for (const item of orderItems) {
       await query(
-        'INSERT INTO order_items (order_id, product_id, product_name, product_picture, product_price, quantity) VALUES ($1, $2, $3, $4, $5, $6)',
-        [order.id, item.product_id, item.product_name, item.product_picture, item.product_price, item.quantity]
+        `INSERT INTO order_items (order_id, product_id, variant_id, product_name, product_picture, product_price, quantity, variant_name, variant_amount)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [order.id, item.product_id, item.variant_id, item.product_name, item.product_picture, item.product_price, item.quantity, item.variant_name, item.variant_amount]
       );
     }
 
-    // No need to create OxaPay invoice here - user will select currency on payment page
-    console.log('Order created successfully:', order.id);
+    console.log('Order created successfully with variants:', order.id);
 
     res.json({
       orderId: order.id,
@@ -227,6 +251,77 @@ export const handleWebhook = async (req: Request, res: Response) => {
       console.error(`Order ${order_id} not found in database`);
     } else {
       console.log(`✓ Order ${order_id} successfully updated to status: ${orderStatus}`);
+
+      // Release reserved stock if order failed/expired
+      if (orderStatus === 'expired' || orderStatus === 'failed') {
+        try {
+          // Get order items with variant info
+          const orderItemsResult = await query(
+            'SELECT variant_id, quantity FROM order_items WHERE order_id = $1 AND variant_id IS NOT NULL',
+            [order_id]
+          );
+
+          // Get city_id from order
+          const cityIdResult = await query(
+            'SELECT city_id FROM orders WHERE id = $1',
+            [order_id]
+          );
+
+          if (cityIdResult.rows.length > 0 && cityIdResult.rows[0].city_id) {
+            const cityId = cityIdResult.rows[0].city_id;
+
+            // Release reserved stock for each item
+            for (const item of orderItemsResult.rows) {
+              await query(
+                `UPDATE variant_stock
+                 SET reserved_amount = GREATEST(0, reserved_amount - $1)
+                 WHERE variant_id = $2 AND city_id = $3`,
+                [item.quantity, item.variant_id, cityId]
+              );
+            }
+
+            console.log(`✓ Released reserved stock for order ${order_id}`);
+          }
+        } catch (stockError) {
+          console.error('Error releasing reserved stock:', stockError);
+        }
+      }
+
+      // Finalize stock (move from reserved to sold) if order is paid
+      if (orderStatus === 'paid') {
+        try {
+          // Get order items with variant info
+          const orderItemsResult = await query(
+            'SELECT variant_id, quantity FROM order_items WHERE order_id = $1 AND variant_id IS NOT NULL',
+            [order_id]
+          );
+
+          // Get city_id from order
+          const cityIdResult = await query(
+            'SELECT city_id FROM orders WHERE id = $1',
+            [order_id]
+          );
+
+          if (cityIdResult.rows.length > 0 && cityIdResult.rows[0].city_id) {
+            const cityId = cityIdResult.rows[0].city_id;
+
+            // Deduct from both stock and reserved
+            for (const item of orderItemsResult.rows) {
+              await query(
+                `UPDATE variant_stock
+                 SET stock_amount = GREATEST(0, stock_amount - $1),
+                     reserved_amount = GREATEST(0, reserved_amount - $1)
+                 WHERE variant_id = $2 AND city_id = $3`,
+                [item.quantity, item.variant_id, cityId]
+              );
+            }
+
+            console.log(`✓ Finalized stock for paid order ${order_id}`);
+          }
+        } catch (stockError) {
+          console.error('Error finalizing stock:', stockError);
+        }
+      }
 
       // Process referral reward if order is paid
       if (orderStatus === 'paid' && result.rows[0]) {
