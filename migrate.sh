@@ -74,6 +74,14 @@ else
     echo "⚠️  Product locations migration failed or already applied"
 fi
 
+# Migration 7: Product Variants & Stock System
+echo "7️⃣ Applying product_variants_migration.sql..."
+if psql -U $DB_USER -d $DB_NAME -f database/product_variants_migration.sql > /dev/null 2>&1; then
+    echo "✅ Product variants & stock system migration completed"
+else
+    echo "⚠️  Product variants migration failed or already applied"
+fi
+
 echo ""
 echo "🎉 Database migration completed!"
 echo ""
@@ -84,6 +92,7 @@ echo ""
 echo "Cities: $(psql -U $DB_USER -d $DB_NAME -t -c 'SELECT COUNT(*) FROM cities;' 2>/dev/null || echo '0')"
 echo "Districts: $(psql -U $DB_USER -d $DB_NAME -t -c 'SELECT COUNT(*) FROM districts;' 2>/dev/null || echo '0')"
 echo "Products: $(psql -U $DB_USER -d $DB_NAME -t -c 'SELECT COUNT(*) FROM products;' 2>/dev/null || echo '0')"
+echo "Product Variants: $(psql -U $DB_USER -d $DB_NAME -t -c 'SELECT COUNT(*) FROM product_variants;' 2>/dev/null || echo '0')"
 echo "Users: $(psql -U $DB_USER -d $DB_NAME -t -c 'SELECT COUNT(*) FROM users;' 2>/dev/null || echo '0')"
 echo "Orders: $(psql -U $DB_USER -d $DB_NAME -t -c 'SELECT COUNT(*) FROM orders;' 2>/dev/null || echo '0')"
 
