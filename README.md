@@ -1,934 +1,534 @@
-# 🔥 SinHuella Corp - CryptoShop v2.1
+# 🛒 Crypto Shop - Anonymous Marketplace
 
 > **БЪРЗО, ЛЕСНО, АНОНИМНО!** - Your Anonymous Cryptocurrency Marketplace
 
-A modern, simplified cryptocurrency marketplace with **white-label OxaPay payment integration** and a sleek **red-themed cyberpunk design**.
+Модерен криптовалутен магазин с **OxaPay White Label** интеграция, **Product Variants System** и **Location-Based Stock Management**.
+
+---
+
+## 📖 Documentation
+
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 📚 **ПЪЛНА ИНСТРУКЦИЯ** за deployment от нулата
+- **README.md** (this file) - Бърз преглед на проекта
 
 ---
 
 ## ✨ Key Features
 
-### 🎨 Modern Red-Themed Design
-- **Professional red/orange gradient color scheme** matching SinHuella Corp branding
-- Dark cyberpunk aesthetic with neon red accents
-- Fully responsive mobile-first design
-- Smooth animations and hover effects
-- Clean, simplified user interface
+### ✅ ЗАВЪРШЕНИ МОДУЛИ:
 
-### 🛍️ Simplified Shopping Experience
-- Beautiful product showcase with grid layout
-- Simple click-to-order flow (no complex cart system)
-- One product at a time ordering for better control
-- Quantity selector with price tiers support
-- Location-based delivery (city + district)
-- Optional promo code support
-
-### 💳 White-Label OxaPay Payment System
-- **14+ Cryptocurrencies supported** (BTC, ETH, USDT, USDC, TRX, BNB, LTC, DOGE, and more)
-- **Multiple networks** for each crypto (TRC20, ERC20, BEP20, etc.)
-- Beautiful currency selection interface
-- QR code payment with copy address function
-- Real-time payment status updates
-- Completely branded payment page (no external redirects)
-- Automated webhook payment confirmation
-
-### 🛡️ Anti-Spam Protection System
-- Maximum 1 active pending order per user
-- Rate limiting: 3 orders per 30 minutes
-- Automatic 24-hour ban for spam attempts
-- Ban status checking on all order attempts
-- Protection against order flooding
-
-### 📦 Delivery Tracking
-- City and district-based delivery
-- Admin adds delivery info after payment confirmation
-- Map link and image link per order
-- Delivery status tracking
-- Timeline of order events
-
-### 👤 User Features
-- Simple registration (username + password)
-- Optional Telegram contact
-- Order history with delivery tracking
+#### 🔐 Authentication & User Management
+- JWT-based authentication
+- Role-based access (Admin/User)
 - Profile management
-- Secure JWT authentication
+- Ban system (temporary/permanent)
+- Referral system with tracking
 
-### 👨‍💼 Admin Panel
+#### 📦 Product Variants System (NEW!)
+- Multiple variants per product (5гр, 10гр, 25гр, etc.)
+- Different prices per variant
+- Stock management per variant per city
+- Real-time stock availability
+
+#### 📍 Location-Based System
+- Product-specific cities & districts
+- Stock tracking per location
+- Delivery address collection
+
+#### 💰 Stock Management (NEW!)
+- Three-state tracking: `stock_amount`, `reserved_amount`, `available`
+- **Reserve** stock on order creation
+- **Finalize** stock on payment confirmation (paid)
+- **Release** stock on expired/failed orders
+- Prevents overselling
+
+#### 💳 OxaPay White Label Payment
+- Customer selects crypto currency (BTC, ETH, USDT, etc.)
+- Customer selects network (TRC20, ERC20, BEP20, etc.)
+- Generates unique payment address
+- QR code + copy address
+- Real-time payment status updates
+- Webhook integration
+
+#### 💬 Communication
+- Admin-User chat system
+- Real-time messaging
+- Unread message counter
+
+#### 🎫 Marketing Tools
+- Promo codes (percentage & fixed)
+- Referral system
+- Minimum order amounts
+
+#### 📊 Admin Panel
 - Dashboard with statistics
 - Product management (CRUD)
-- Order management with filters
-- User management with ban controls
-- Delivery info management
-- Promo code system
-- Price tier management (quantity-based pricing)
+- Location assignment per product
+- Order management (filters, status updates)
+- Delivery tracking (map link, image link)
+- User management (ban/unban)
+- Chat conversations
 
 ---
 
-## 📋 Prerequisites
+## 🚧 В ПРОЦЕС (Roadmap):
 
-Before installation, ensure you have:
+### Етап 4: Admin Variants UI
+- [ ] Visual variant management in admin panel
+- [ ] Stock management interface per city
+- [ ] Bulk stock updates
+- [ ] Low stock alerts
+- [ ] Variant sorting/reordering
 
-- **Node.js 18+** and npm
-- **PostgreSQL 14+**
-- **Git**
-- **OxaPay Merchant Account** (free at https://oxapay.com)
-- Linux/Mac/Windows with terminal access
+### Етап 5: Design Overhaul
+- [ ] Hero section with card design
+- [ ] Product cards redesign
+- [ ] Animations & transitions
+- [ ] Mobile responsive improvements
 
 ---
 
-## 🚀 Step-by-Step Installation Guide
+## 🚀 Quick Start
 
-### Step 1: Clone the Repository
+### За пълна инструкция виж [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+### Кратък старт (ако вече имаш всичко настроено):
 
 ```bash
-# Clone the repository
+# 1. Clone проекта
 git clone https://github.com/tumnatamreja/Crypto-shop.git
 cd Crypto-shop
 
-# Switch to the correct branch
-git checkout claude/upload-privacy-project-011CUKLk8uC5a66QpcumRJ5Z
+# 2. Install dependencies
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
+
+# 3. Configure environment variables
+# Edit backend/.env and frontend/.env.local
+
+# 4. Setup database
+psql -U postgres -c "CREATE DATABASE cryptoshop"
+psql -U postgres -d cryptoshop -f backend/migrations/001_initial_schema.sql
+psql -U postgres -d cryptoshop -f backend/migrations/002_product_variants.sql
+
+# 5. Build backend
+cd backend && npm run build && cd ..
+
+# 6. Build frontend
+cd frontend && npm run build && cd ..
+
+# 7. Start with PM2
+npx pm2 start ecosystem.config.js
+
+# 8. Check status
+npx pm2 status
+```
+
+**URLs:**
+- **Frontend:** http://localhost:3002
+- **Backend API:** http://localhost:3001
+- **Admin Panel:** http://localhost:3002/admin/login
+
+---
+
+## 🔧 Tech Stack
+
+### Backend:
+- **Node.js** + **Express** + **TypeScript**
+- **PostgreSQL** - Relational database
+- **JWT** - Authentication tokens
+- **bcrypt** - Password hashing
+- **OxaPay API** - Crypto payments
+
+### Frontend:
+- **Next.js 14** (App Router)
+- **React 18** + **TypeScript**
+- **Tailwind CSS** - Cyberpunk red theme
+- **Axios** - HTTP client
+
+### DevOps:
+- **PM2** - Process manager
+- **Nginx** - Reverse proxy (production)
+- **Let's Encrypt** - SSL/TLS
+
+---
+
+## 📊 Database Schema
+
+### Core Tables:
+```
+users
+products
+cities
+districts
+product_cities         (M2M: products ↔ cities)
+product_districts      (M2M: products ↔ districts)
+
+product_variants       (1:N from products)
+variant_stock          (stock per variant per city)
+
+orders
+order_items            (with variant_id, variant_name)
+promo_codes
+referrals
+chat_messages
+```
+
+### Product Variants Flow:
+
+```
+Product (Cocaine)
+  ↓
+Variants:
+  - 5гр  → €45.00
+  - 10гр → €85.00
+  - 25гр → €200.00
+  ↓
+Stock per City:
+  Sofia:
+    - 5гр:  100 units (10 reserved = 90 available)
+    - 10гр: 50 units (5 reserved = 45 available)
+  Plovdiv:
+    - 5гр:  75 units (0 reserved = 75 available)
 ```
 
 ---
 
-### Step 2: Install and Setup PostgreSQL
+## 💳 Payment Flow
 
-#### On Ubuntu/Debian:
-```bash
-# Update package list
-sudo apt update
+### Customer Experience:
 
-# Install PostgreSQL
-sudo apt install postgresql postgresql-contrib -y
+1. **Select Product** → Choose variant → Select quantity
+2. **Choose Location** → City + District
+3. **Create Order** → Stock gets **reserved**
+4. **Payment Page:**
+   - Select crypto (BTC, ETH, USDT, etc.)
+   - Select network (TRC20, ERC20, etc.)
+   - Get payment address + QR code
+5. **Send Payment** → Customer sends crypto
+6. **Webhook Processes:**
+   - Status `paid` → Stock **finalized** (deducted)
+   - Status `expired`/`failed` → Stock **released**
 
-# Start PostgreSQL service
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+### Supported Cryptocurrencies:
 
-# Verify installation
-sudo systemctl status postgresql
-```
-
-#### On macOS:
-```bash
-# Install via Homebrew
-brew install postgresql@14
-
-# Start PostgreSQL
-brew services start postgresql@14
-```
-
-#### On Windows:
-Download and install from: https://www.postgresql.org/download/windows/
+| Crypto | Networks |
+|--------|----------|
+| USDT | TRC20, ERC20, BEP20, Polygon, TON |
+| USDC | ERC20, TRC20, BEP20, Polygon |
+| BTC | Bitcoin Network |
+| ETH | ERC20 |
+| TRX | TRC20 |
+| BNB | BEP20, BEP2 |
+| LTC, DOGE, BCH, XRP, ADA, SOL, TON, MATIC, DAI, SHIB |
 
 ---
 
-### Step 3: Create Database
-
-```bash
-# Access PostgreSQL as postgres user
-sudo -u postgres psql
-```
-
-In the PostgreSQL prompt, run:
-```sql
--- Create database
-CREATE DATABASE cryptoshop;
-
--- Create user with password
-CREATE USER cryptoshop_user WITH PASSWORD 'YOUR_SECURE_PASSWORD_HERE';
-
--- Grant privileges
-GRANT ALL PRIVILEGES ON DATABASE cryptoshop TO cryptoshop_user;
-
--- Connect to database
-\c cryptoshop
-
--- Grant schema privileges
-GRANT ALL ON SCHEMA public TO cryptoshop_user;
-
--- Exit
-\q
-```
-
-**⚠️ Important:** Replace `YOUR_SECURE_PASSWORD_HERE` with a strong password!
-
----
-
-### Step 4: Import Database Schema
-
-```bash
-# Import the database schema
-psql -U cryptoshop_user -d cryptoshop -f database/schema.sql
-
-# Verify tables were created
-psql -U cryptoshop_user -d cryptoshop -c "\dt"
-```
-
-You should see tables: users, products, orders, order_items, product_price_tiers, promo_codes, referrals, chat_messages
-
----
-
-### Step 5: Setup Backend
-
-```bash
-# Navigate to backend folder
-cd backend
-
-# Install dependencies
-npm install
-
-# Create environment file
-cp .env.example .env
-# OR
-nano .env
-```
-
-**Edit the `.env` file:**
-```env
-# Server Configuration
-PORT=3001
-NODE_ENV=development
-
-# Database Configuration
-DATABASE_URL=postgresql://cryptoshop_user:YOUR_SECURE_PASSWORD_HERE@localhost:5432/cryptoshop
-
-# JWT Secret (generate a random 32+ character string)
-JWT_SECRET=your_super_secret_random_jwt_key_change_this_NOW_min_32_chars
-
-# OxaPay API Configuration
-OXAPAY_API_KEY=your_oxapay_merchant_api_key_here
-
-# Frontend URL (for CORS)
-FRONTEND_URL=http://localhost:3002
-```
-
-**⚠️ Security Notes:**
-- Generate a strong JWT_SECRET: `openssl rand -hex 32`
-- Use the database password you created in Step 3
-- Get OxaPay API key from https://oxapay.com dashboard
-
----
-
-### Step 6: Start Backend Server
-
-```bash
-# Development mode (with auto-reload)
-npm run dev
-
-# You should see:
-# 🚀 Server running on port 3001
-# 📡 Health check: http://localhost:3001/health
-```
-
-**Test backend:**
-```bash
-# Open new terminal
-curl http://localhost:3001/health
-
-# Expected response:
-# {"status":"ok","message":"CryptoShop API is running"}
-```
-
-**✅ Backend is ready!** Keep this terminal running.
-
----
-
-### Step 7: Setup Frontend
-
-Open a **new terminal window:**
-
-```bash
-# Navigate to frontend folder
-cd Crypto-shop/frontend
-
-# Install dependencies
-npm install
-
-# Create environment file
-nano .env.local
-```
-
-**Edit the `.env.local` file:**
-```env
-# API URL (backend server)
-NEXT_PUBLIC_API_URL=http://localhost:3001
-```
-
----
-
-### Step 8: Start Frontend Server
-
-```bash
-# Development mode
-npm run dev
-
-# You should see:
-# ▲ Next.js 14.x
-# - Local: http://localhost:3002
-```
-
-**✅ Frontend is ready!** Open http://localhost:3002 in your browser.
-
----
-
-### Step 9: Create Admin Account
-
-Open a **new terminal:**
-
-```bash
-# Navigate to backend folder
-cd Crypto-shop/backend
-
-# Generate password hash
-node -e "const bcrypt = require('bcrypt'); bcrypt.hash('admin123', 10).then(hash => console.log(hash));"
-```
-
-**Copy the generated hash**, then:
-
-```bash
-# Access database
-psql -U cryptoshop_user -d cryptoshop
-```
-
-Run this SQL (replace `PASTE_HASH_HERE` with the hash you copied):
-```sql
-INSERT INTO users (username, password_hash, telegram, is_admin)
-VALUES ('admin', 'PASTE_HASH_HERE', '@admin', true);
-
--- Verify admin was created
-SELECT id, username, is_admin FROM users;
-
--- Exit
-\q
-```
-
-**✅ Admin account created!**
-- Username: `admin`
-- Password: `admin123`
-- **⚠️ Change this password after first login!**
-
----
-
-### Step 10: Setup OxaPay Integration
-
-#### 10.1 Create OxaPay Merchant Account
-
-1. Go to https://oxapay.com
-2. Click **"Sign Up"** → Select **"Merchant Account"**
-3. Complete registration
-4. Verify your email
-
-#### 10.2 Get API Credentials
-
-1. Login to OxaPay Dashboard
-2. Go to **Settings** → **API**
-3. Copy your **Merchant API Key**
-4. Paste it in `backend/.env`:
-   ```env
-   OXAPAY_API_KEY=your_merchant_api_key_here
-   ```
-
-#### 10.3 Configure Webhook (For Production)
-
-**For Local Development:**
-```bash
-# Install ngrok (if not installed)
-# Download from https://ngrok.com
-
-# Expose local backend
-ngrok http 3001
-
-# Copy the HTTPS URL (e.g., https://abc123.ngrok.io)
-```
-
-**In OxaPay Dashboard:**
-1. Go to **Settings** → **Webhooks**
-2. Set webhook URL:
-   - Development: `https://your-ngrok-url.ngrok.io/api/webhook/oxapay`
-   - Production: `https://your-domain.com/api/webhook/oxapay`
-3. Save webhook URL
-
-**Restart backend** to apply changes.
-
----
-
-### Step 11: Test the Application
-
-#### 11.1 Test User Registration
-
-1. Open http://localhost:3002
-2. Click **"Създай Акаунт"** (Create Account)
-3. Register with:
-   - Username: `testuser`
-   - Password: `test123`
-   - Telegram: `@testuser` (optional)
-
-#### 11.2 Test Product Viewing
-
-1. Home page should show products grid
-2. Products should have red-themed cards
-3. Hover effects should work
-
-#### 11.3 Test Admin Panel
-
-1. Logout from test user
-2. Login with admin credentials:
-   - Username: `admin`
-   - Password: `admin123`
-3. Click **"Admin"** in header
-4. Verify dashboard loads with stats
-
-#### 11.4 Create Test Product
-
-1. In Admin Panel, go to **"Products"** tab
-2. Click **"Add Product"**
-3. Fill in:
-   - Name: `Test Product`
-   - Description: `This is a test product`
-   - Price: `10.00`
-   - Currency: `EUR`
-   - Picture Link: `https://via.placeholder.com/200`
-   - Quantity: `1`
-4. Click **"Create Product"**
-5. Go to home page → Product should appear
-
-#### 11.5 Test Order Flow
-
-1. Logout and login as `testuser`
-2. Click on the test product
-3. Fill in order form:
-   - Quantity: `1`
-   - City: `Sofia`
-   - District: `Center`
-   - Promo Code: (leave empty)
-4. Click **"Proceed to Payment"**
-5. Select cryptocurrency (e.g., USDT)
-6. Select network (e.g., TRC20)
-7. Payment page should show:
-   - QR code
-   - Payment address
-   - Amount in EUR
-   - Copy address button
-
-**✅ All systems working!**
-
----
-
-## 🏗️ Project Structure
+## 📁 Project Structure
 
 ```
 Crypto-shop/
-├── database/
-│   └── schema.sql                    # Complete database schema with all tables
-│
 ├── backend/
 │   ├── src/
-│   │   ├── config/
-│   │   │   └── database.ts           # PostgreSQL connection pool
 │   │   ├── controllers/
-│   │   │   ├── authController.ts      # Registration, login, JWT
-│   │   │   ├── productController.ts   # Product CRUD operations
-│   │   │   ├── orderController.ts     # Order management
-│   │   │   ├── paymentController.ts   # OxaPay integration & checkout
-│   │   │   ├── adminController.ts     # Admin panel APIs
-│   │   │   ├── chatController.ts      # Admin-user chat system
-│   │   │   ├── referralController.ts  # Referral system
-│   │   │   └── promoCodeController.ts # Promo code management
+│   │   │   ├── authController.ts
+│   │   │   ├── productController.ts       # getProductById with variants
+│   │   │   ├── paymentController.ts       # Checkout + webhook with stock
+│   │   │   ├── orderController.ts
+│   │   │   ├── adminController.ts
+│   │   │   ├── productVariantController.ts # Variant CRUD
+│   │   │   ├── locationController.ts       # Cities/Districts
+│   │   │   ├── chatController.ts
+│   │   │   ├── referralController.ts
+│   │   │   └── promoCodeController.ts
 │   │   ├── middleware/
-│   │   │   ├── auth.ts                # JWT verification, admin check
-│   │   │   └── antiSpam.ts            # Anti-spam protection middleware
+│   │   │   └── auth.ts
 │   │   ├── services/
-│   │   │   └── oxapayService.ts       # OxaPay API client
+│   │   │   └── oxapayService.ts
+│   │   ├── config/
+│   │   │   └── database.ts
 │   │   ├── types/
-│   │   │   └── index.ts               # TypeScript interfaces
-│   │   └── server.ts                  # Express app entry point
-│   ├── .env                           # Environment variables
+│   │   │   └── index.ts
+│   │   └── server.ts
+│   ├── migrations/
+│   │   ├── 001_initial_schema.sql
+│   │   └── 002_product_variants.sql
+│   ├── dist/                    # Built JS (generated)
+│   ├── .env                     # Environment variables
 │   ├── package.json
 │   └── tsconfig.json
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                   # Home page (red theme, product showcase)
-│   │   ├── layout.tsx                 # Root layout
-│   │   ├── globals.css                # Global styles (red theme)
+│   │   ├── page.tsx             # Home page
 │   │   ├── login/
-│   │   │   └── page.tsx               # Login page
 │   │   ├── register/
-│   │   │   └── page.tsx               # Registration page
-│   │   ├── order/
-│   │   │   └── [productId]/
-│   │   │       └── page.tsx           # Single product order page
-│   │   ├── payment/
-│   │   │   └── [orderId]/
-│   │   │       └── page.tsx           # White-label payment page
-│   │   ├── profile/
-│   │   │   └── page.tsx               # User profile + order history
-│   │   └── admin/
-│   │       └── page.tsx               # Admin panel
-│   ├── components/
-│   │   ├── Header.tsx                 # Navigation header
-│   │   └── Footer.tsx                 # Footer component
+│   │   ├── order/[productId]/   # Variant selection UI
+│   │   ├── payment/[orderId]/   # White-label payment
+│   │   ├── profile/             # User orders
+│   │   └── admin/               # Admin panel
 │   ├── lib/
-│   │   └── api.ts                     # API client functions
-│   ├── .env.local                     # Frontend environment variables
+│   │   └── api.ts               # API client
+│   ├── .env.local
 │   ├── package.json
-│   ├── tailwind.config.ts
 │   └── next.config.js
 │
-└── README.md                          # This file
+├── ecosystem.config.js          # PM2 config
+├── DEPLOYMENT.md               # Full deployment guide
+└── README.md                   # This file
 ```
 
 ---
 
 ## 🎨 Design System
 
-### Color Palette (Red Theme)
+### Cyberpunk Red Theme:
 
 ```css
 /* Primary Colors */
---neon-red: #ff3b3b        /* Main accent color */
---neon-orange: #ff6b35     /* Secondary accent */
---neon-pink: #ff5e78       /* Tertiary accent */
---neon-dark-red: #c41e3a   /* Dark accent */
+--neon-red: #ff3b3b;
+--neon-orange: #ff6b35;
+--neon-cyan: #00ffff;
+--neon-green: #39ff14;
 
-/* Background Colors */
---bg-primary: #0a0a0a      /* Main background */
---bg-secondary: #1a0f0f    /* Secondary background */
---bg-card: #1f1515         /* Card background */
---bg-card-hover: #2a1a1a   /* Card hover state */
-
-/* Text Colors */
---text-primary: #e5e7eb    /* Main text */
---text-secondary: #9ca3af  /* Secondary text */
---text-accent: #ff3b3b     /* Accent text */
+/* Backgrounds */
+--bg-primary: #0a0a0a;
+--bg-card: #1f1515;
 ```
 
-### Component Styles
-
-- **Buttons:** Red/orange gradient with hover animations
-- **Cards:** Dark background with red borders and glow effects
-- **Inputs:** Dark with red focus borders
-- **Product Cards:** Hover lift effect with red glow
-- **Price Tags:** Gradient text with monospace font
-
----
-
-## 🔐 Security Features
-
-### Authentication
-- ✅ JWT-based token authentication
-- ✅ bcrypt password hashing (10 rounds)
-- ✅ Admin role verification
-- ✅ Secure cookie handling
-
-### Database
-- ✅ Prepared statements (SQL injection protection)
-- ✅ UUID primary keys
-- ✅ Password never stored in plain text
-- ✅ Foreign key constraints
-
-### Anti-Spam Protection
-- ✅ One active order limit per user
-- ✅ Rate limiting (3 orders / 30 minutes)
-- ✅ Automatic 24-hour ban for spam
-- ✅ Ban checking on all protected routes
-
-### Payment Security
-- ✅ OxaPay HMAC signature verification
-- ✅ Webhook payload validation
-- ✅ Environment variable secrets
-- ✅ CORS protection
+### Components:
+- `.cyber-card` - Card with neon border
+- `.cyber-button` - Button with glow effect
+- `.cyber-input` - Input field styling
+- `.neon-glow` - Text glow effect
+- `.text-gradient` - Gradient text
 
 ---
 
-## 🚀 Production Deployment
+## 🔐 API Endpoints
 
-### Environment Configuration
+### Public:
+```
+GET    /api/products                    # List products
+GET    /api/products/:id                # Product + variants
+POST   /api/auth/register               # Register
+POST   /api/auth/login                  # Login
+POST   /api/checkout                    # Create order (with variantId)
+POST   /api/webhook/oxapay              # Payment webhook
+```
 
-**Backend `.env` for production:**
+### Protected (User):
+```
+GET    /api/auth/profile                # User profile
+GET    /api/orders                      # User orders
+GET    /api/orders/:id                  # Order details
+POST   /api/chat/send                   # Send message
+GET    /api/referral/stats              # Referral stats
+```
+
+### Admin:
+```
+GET    /api/admin/dashboard             # Statistics
+GET    /api/admin/products              # All products
+POST   /api/admin/products              # Create product
+PUT    /api/admin/products/:id          # Update product
+DELETE /api/admin/products/:id          # Delete product
+GET    /api/admin/orders                # All orders
+PUT    /api/admin/orders/:id            # Update order
+GET    /api/admin/users                 # All users
+POST   /api/admin/users/:id/ban         # Ban user
+```
+
+---
+
+## 🧪 Testing
+
+### Test Order Flow:
+
+1. **Register/Login:**
+   ```
+   http://localhost:3002/register
+   ```
+
+2. **Create Product (Admin):**
+   - Login to admin panel
+   - Create product
+   - Assign locations
+
+3. **Add Variants (SQL for now):**
+   ```sql
+   INSERT INTO product_variants (product_id, variant_name, variant_type, amount, price)
+   VALUES ('prod-id', '5гр', 'гр', 5, 45.00);
+
+   INSERT INTO variant_stock (variant_id, city_id, stock_amount, reserved_amount)
+   VALUES ('variant-id', 'city-id', 100, 0);
+   ```
+
+4. **Customer Order:**
+   - Visit product page
+   - Select city → Variants load
+   - Select district
+   - Select variant
+   - Checkout → Stock reserves
+   - Pay → Stock finalizes
+
+5. **Verify Stock:**
+   ```sql
+   SELECT * FROM variant_stock;
+   ```
+
+---
+
+## 🛠️ Полезни Команди
+
+### PM2:
+```bash
+npx pm2 status          # Status
+npx pm2 logs            # View logs
+npx pm2 restart all     # Restart services
+npx pm2 stop all        # Stop services
+```
+
+### Database:
+```bash
+psql -U postgres -d cryptoshop                     # Connect
+pg_dump -U postgres cryptoshop > backup.sql        # Backup
+psql -U postgres -d cryptoshop < backup.sql        # Restore
+```
+
+### Development:
+```bash
+# Backend
+cd backend && npm run dev
+
+# Frontend
+cd frontend && npm run dev
+```
+
+### Production:
+```bash
+cd backend && npm run build
+cd frontend && npm run build
+npx pm2 start ecosystem.config.js
+```
+
+---
+
+## 🔒 Security Features
+
+- ✅ JWT authentication
+- ✅ bcrypt password hashing
+- ✅ SQL injection protection (parameterized queries)
+- ✅ XSS protection
+- ✅ CORS configured
+- ✅ Environment variables for secrets
+- ✅ Webhook signature verification
+- ✅ Stock race condition handling
+
+---
+
+## 📚 Environment Variables
+
+### Backend (.env):
 ```env
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=cryptoshop
+DB_USER=postgres
+DB_PASSWORD=your_password
+
+# Auth
+JWT_SECRET=your_jwt_secret_min_32_chars
+
+# OxaPay
+OXAPAY_API_KEY=your_oxapay_api_key
+OXAPAY_MERCHANT_API_KEY=your_merchant_key
+OXAPAY_WEBHOOK_SECRET=your_webhook_secret
+OXAPAY_CALLBACK_URL=https://yourdomain.com/api/webhook/oxapay
+
+# Server
 PORT=3001
 NODE_ENV=production
-DATABASE_URL=postgresql://cryptoshop_user:STRONG_PASSWORD@localhost:5432/cryptoshop
-JWT_SECRET=RANDOM_64_CHAR_STRING_GENERATED_SECURELY
-OXAPAY_API_KEY=your_production_api_key
-FRONTEND_URL=https://your-domain.com
 ```
 
-**Frontend `.env.local` for production:**
+### Frontend (.env.local):
 ```env
-NEXT_PUBLIC_API_URL=https://your-domain.com
-```
-
----
-
-### Using PM2 Process Manager
-
-```bash
-# Install PM2 globally
-sudo npm install -g pm2
-
-# Build and start backend
-cd ~/Crypto-shop/backend
-npm run build
-pm2 start npm --name "cryptoshop-backend" -- start
-
-# Build and start frontend
-cd ~/Crypto-shop/frontend
-npm run build
-pm2 start npm --name "cryptoshop-frontend" -- start
-
-# Save process list
-pm2 save
-
-# Setup auto-start on system reboot
-pm2 startup
-# Follow the command that PM2 outputs
-
-# View process status
-pm2 status
-
-# View logs
-pm2 logs cryptoshop-backend
-pm2 logs cryptoshop-frontend
-```
-
----
-
-### Nginx Configuration
-
-```bash
-# Install Nginx
-sudo apt install nginx -y
-
-# Create site configuration
-sudo nano /etc/nginx/sites-available/cryptoshop
-```
-
-**Nginx config file:**
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com www.your-domain.com;
-
-    # Frontend
-    location / {
-        proxy_pass http://localhost:3002;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Backend API
-    location /api {
-        proxy_pass http://localhost:3001;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Increase max upload size
-    client_max_body_size 10M;
-}
-```
-
-```bash
-# Enable site
-sudo ln -s /etc/nginx/sites-available/cryptoshop /etc/nginx/sites-enabled/
-
-# Test configuration
-sudo nginx -t
-
-# Restart Nginx
-sudo systemctl restart nginx
-```
-
----
-
-### SSL Certificate (Let's Encrypt)
-
-```bash
-# Install Certbot
-sudo apt install certbot python3-certbot-nginx -y
-
-# Get SSL certificate
-sudo certbot --nginx -d your-domain.com -d www.your-domain.com
-
-# Certificate auto-renewal is configured automatically
-# Test renewal:
-sudo certbot renew --dry-run
-```
-
----
-
-### Firewall Setup
-
-```bash
-# Install UFW
-sudo apt install ufw -y
-
-# Allow SSH
-sudo ufw allow 22/tcp
-
-# Allow HTTP and HTTPS
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-
-# Enable firewall
-sudo ufw enable
-
-# Check status
-sudo ufw status
-```
-
----
-
-### Database Backup
-
-```bash
-# Create backup directory
-mkdir -p ~/backups
-
-# Manual backup
-pg_dump -U cryptoshop_user cryptoshop > ~/backups/cryptoshop_$(date +%Y%m%d_%H%M%S).sql
-
-# Setup automated daily backup (cron)
-crontab -e
-
-# Add this line (backup at 3 AM daily):
-0 3 * * * pg_dump -U cryptoshop_user cryptoshop > ~/backups/cryptoshop_$(date +\%Y\%m\%d_\%H\%M\%S).sql
+NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Backend won't start
-
+### Backend не стартира:
 ```bash
-# Check if PostgreSQL is running
-sudo systemctl status postgresql
+# Check logs
+npx pm2 logs backend
 
-# Check if port 3001 is already in use
-sudo lsof -i :3001
+# Check database connection
+psql -U postgres -d cryptoshop
 
-# Kill process on port 3001 if needed
-sudo kill -9 $(sudo lsof -t -i:3001)
-
-# Check backend logs
-cd backend
-npm run dev
-# Read the error message
+# Check port
+lsof -i :3001
 ```
 
-### Database connection error
-
+### Frontend не се зарежда:
 ```bash
-# Test database connection
-psql -U cryptoshop_user -d cryptoshop
+# Check logs
+npx pm2 logs frontend
 
-# If password error, reset it:
-sudo -u postgres psql
-ALTER USER cryptoshop_user WITH PASSWORD 'new_password';
-\q
+# Rebuild
+cd frontend && npm run build
 
-# Update backend/.env with new password
+# Check port
+lsof -i :3002
 ```
 
-### Frontend build fails
-
-```bash
-# Clear cache and rebuild
-cd frontend
-rm -rf .next node_modules package-lock.json
-npm install
-npm run build
-```
-
-### OxaPay webhook not working
-
-1. **Check webhook URL in OxaPay dashboard**
-   - Must be publicly accessible (use ngrok for local testing)
-   - Must end with `/api/webhook/oxapay`
-
-2. **Test webhook manually:**
-   ```bash
-   curl -X POST http://localhost:3001/api/webhook/oxapay \
-     -H "Content-Type: application/json" \
-     -d '{"trackId":"test123","orderid":"test-order","status":"Paid"}'
-   ```
-
-3. **Check backend logs:**
-   ```bash
-   pm2 logs cryptoshop-backend
-   # Look for "OxaPay Webhook received"
-   ```
-
-### Payment not confirming
-
-- ✅ Verify OXAPAY_API_KEY is correct
-- ✅ Check OxaPay dashboard for payment status
-- ✅ Ensure webhook URL is publicly accessible
-- ✅ Check backend logs for webhook callbacks
-- ✅ Verify HMAC signature if enabled
+### Pълни решения в [DEPLOYMENT.md](./DEPLOYMENT.md#troubleshooting)
 
 ---
 
-## 📊 Supported Cryptocurrencies
+## 🆘 Support
 
-The white-label payment page supports **14+ cryptocurrencies** with multiple networks:
-
-| Cryptocurrency | Symbol | Networks |
-|----------------|--------|----------|
-| Tether | USDT | TRC20, ERC20, BEP20, Polygon, TON |
-| USD Coin | USDC | ERC20, TRC20, BEP20, Polygon, TON |
-| Bitcoin | BTC | Bitcoin Network |
-| Ethereum | ETH | ERC20 |
-| Tron | TRX | TRC20 |
-| Binance Coin | BNB | BEP20, BEP2 |
-| Litecoin | LTC | Litecoin Network |
-| Dogecoin | DOGE | Dogecoin Network |
-| Bitcoin Cash | BCH | Bitcoin Cash Network |
-| Ripple | XRP | XRP Ledger |
-| Cardano | ADA | Cardano Network |
-| Solana | SOL | Solana Network |
-| Toncoin | TON | TON Network |
-| Polygon | MATIC | Polygon Network |
-| Dai | DAI | ERC20, BEP20, Polygon |
-| Shiba Inu | SHIB | ERC20 |
-| Binance USD | BUSD | BEP20, ERC20 |
-
----
-
-## 📞 Support
-
-### View Logs
-
-**PM2 Logs:**
-```bash
-pm2 logs cryptoshop-backend --lines 100
-pm2 logs cryptoshop-frontend --lines 100
-```
-
-**Nginx Logs:**
-```bash
-sudo tail -f /var/log/nginx/access.log
-sudo tail -f /var/log/nginx/error.log
-```
-
-**PostgreSQL Logs:**
-```bash
-sudo tail -f /var/log/postgresql/postgresql-14-main.log
-```
-
-### PM2 Commands
-
-```bash
-# Process status
-pm2 status
-
-# Restart services
-pm2 restart cryptoshop-backend
-pm2 restart cryptoshop-frontend
-
-# Stop services
-pm2 stop all
-
-# Monitor CPU/RAM
-pm2 monit
-
-# Delete process
-pm2 delete cryptoshop-backend
-```
-
----
-
-## 🔒 Production Security Checklist
-
-Before going live, ensure:
-
-- [ ] Change default admin password
-- [ ] Generate strong JWT_SECRET (min 64 characters)
-- [ ] Set NODE_ENV=production
-- [ ] Enable HTTPS with SSL certificate
-- [ ] Configure firewall (UFW)
-- [ ] Setup automated database backups
-- [ ] Update OxaPay webhook URL to production domain
-- [ ] Restrict CORS to your domain only
-- [ ] Use strong PostgreSQL passwords
-- [ ] Keep npm dependencies updated
-- [ ] Configure fail2ban for SSH protection
-- [ ] Setup monitoring (PM2, uptime robot)
-- [ ] Review PostgreSQL pg_hba.conf for access restrictions
-- [ ] Test anti-spam protection
-- [ ] Verify webhook HMAC signatures
-- [ ] Setup error logging and alerts
-
----
-
-## 🎯 What's New in v2.1
-
-### Simplified Design
-- ✅ Removed complex cart system
-- ✅ One-product-at-a-time ordering
-- ✅ Cleaner user interface
-- ✅ Simplified checkout flow
-
-### Red Theme Redesign
-- ✅ Changed from green/cyan to red/orange
-- ✅ Matches SinHuella Corp branding
-- ✅ Professional gradient color scheme
-- ✅ Updated all UI components
-
-### White-Label Payment Page
-- ✅ No external redirects to OxaPay
-- ✅ Fully branded payment interface
-- ✅ Beautiful currency/network selector
-- ✅ QR code and address display
-- ✅ Real-time payment status
-
-### Anti-Spam System
-- ✅ One active order limit
-- ✅ Rate limiting (3/30min)
-- ✅ Automatic ban system
-- ✅ Protection against order spam
-
-### Enhanced User Experience
-- ✅ Modern navigation header
-- ✅ Professional footer
-- ✅ Responsive mobile design
-- ✅ Smooth animations
-- ✅ Better error messages
+- 📧 Email: support@sinhuella.com
+- 💬 Telegram: @your_telegram
+- 🐛 GitHub Issues: [Create Issue](https://github.com/tumnatamreja/Crypto-shop/issues)
 
 ---
 
 ## 📝 License
 
-MIT License - Free to use and modify.
+MIT License
 
 ---
 
 ## 🏆 Built With
 
-- **Backend:** Node.js, Express, TypeScript, PostgreSQL
-- **Frontend:** Next.js 14, React 18, TailwindCSS
-- **Payments:** OxaPay API (White-Label Integration)
-- **Design:** Cyberpunk Red Theme
-- **Deployment:** PM2, Nginx, Let's Encrypt
-- **Security:** JWT, bcrypt, Anti-Spam Middleware
+- Node.js, Express, TypeScript, PostgreSQL
+- Next.js 14, React 18, TailwindCSS
+- OxaPay API (White-Label)
+- PM2, Nginx, Let's Encrypt
 
 ---
 
-**Version:** 2.1
-**Theme:** SinHuella Corp Red
-**Status:** Production Ready
+## 📅 Version History
+
+**v3.0** (Current - October 2025)
+- ✅ Product Variants System
+- ✅ Location-Based Stock Management
+- ✅ Stock Reservation/Finalization
+- ✅ Enhanced checkout flow
+- ✅ TypeScript improvements
+
+**v2.1** (Previous)
+- White-label payment page
+- Red cyberpunk theme
+- Anti-spam system
+
+---
+
+**Status:** ✅ Production Ready (Етап 1-3 Complete)
+**Next:** 🚧 Етап 4 - Admin Variants UI
 
 **🔥 БЪРЗО, ЛЕСНО, АНОНИМНО! 🔥**
