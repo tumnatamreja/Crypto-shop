@@ -36,7 +36,7 @@ export const createWhiteLabelPayment = async (
       {
         headers: {
           'Content-Type': 'application/json',
-          'merchant_api_key': process.env.OXAPAY_API_KEY || ''
+          'merchant-api-key': process.env.OXAPAY_API_KEY || ''
         }
       }
     );

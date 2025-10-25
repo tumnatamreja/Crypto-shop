@@ -30,6 +30,13 @@ import {
   getProductAvailableCities,
   getProductAvailableDistricts,
   bulkUpdateProductLocations,
+  getAdminProductVariants,
+  createVariant,
+  updateVariant,
+  deleteVariant,
+  getVariantStock,
+  updateVariantStock,
+  bulkUpdateVariantStock,
 } from '@/lib/api';
 
 type Tab = 'dashboard' | 'products' | 'orders' | 'users' | 'chat' | 'promos' | 'settings';
@@ -378,6 +385,104 @@ export default function AdminPanel() {
       setProductSelectedDistricts([]);
     } catch (error: any) {
       alert(error.response?.data?.error || 'Failed to update locations');
+    }
+  };
+
+  // Product Variant handlers
+  const handleManageVariants = async (productId: string) => {
+    try {
+      setSelectedProductForVariants(productId);
+      const res = await getAdminProductVariants(productId);
+      setVariants(res.data.variants || []);
+    } catch (error) {
+      console.error('Error loading variants:', error);
+      setVariants([]);
+    }
+  };
+
+  const handleVariantSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductForVariants) return;
+
+    try {
+      const variantData = {
+        variantName: variantForm.variantName,
+        variantType: variantForm.variantType,
+        amount: parseFloat(variantForm.amount),
+        price: parseFloat(variantForm.price),
+      };
+
+      if (editingVariant) {
+        await updateVariant(editingVariant.id, variantData);
+      } else {
+        await createVariant(selectedProductForVariants, variantData);
+      }
+
+      // Reload variants
+      const res = await getAdminProductVariants(selectedProductForVariants);
+      setVariants(res.data.variants || []);
+
+      // Reset form
+      setShowVariantForm(false);
+      setEditingVariant(null);
+      setVariantForm({ variantName: '', variantType: 'гр', amount: '', price: '' });
+      alert('Variant saved successfully!');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to save variant');
+    }
+  };
+
+  const handleEditVariant = (variant: any) => {
+    setEditingVariant(variant);
+    setVariantForm({
+      variantName: variant.variant_name,
+      variantType: variant.variant_type,
+      amount: variant.amount.toString(),
+      price: variant.price.toString(),
+    });
+    setShowVariantForm(true);
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!confirm('Are you sure you want to delete this variant?')) return;
+
+    try {
+      await deleteVariant(variantId);
+
+      // Reload variants
+      if (selectedProductForVariants) {
+        const res = await getAdminProductVariants(selectedProductForVariants);
+        setVariants(res.data.variants || []);
+      }
+      alert('Variant deleted successfully!');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to delete variant');
+    }
+  };
+
+  const handleManageVariantStock = async (variantId: string) => {
+    try {
+      setSelectedVariantForStock(variantId);
+      const res = await getVariantStock(variantId);
+      setVariantStock(res.data.stock || []);
+    } catch (error) {
+      console.error('Error loading variant stock:', error);
+      setVariantStock([]);
+    }
+  };
+
+  const handleVariantStockUpdate = async (variantId: string, cityId: string, stockAmount: number) => {
+    try {
+      await updateVariantStock(variantId, cityId, {
+        stockAmount: stockAmount,
+      });
+
+      // Reload stock
+      const res = await getVariantStock(variantId);
+      setVariantStock(res.data.stock || []);
+      alert('Stock updated successfully!');
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Failed to update stock');
     }
   };
 
@@ -1100,6 +1205,230 @@ export default function AdminPanel() {
                     </div>
                   )}
 
+                  {/* Variant Manager */}
+                  {selectedProductForVariants && (
+                    <div className="cyber-card mb-6 border-2 border-neon-cyan">
+                      <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-neon-cyan">
+                          Manage Product Variants
+                        </h2>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingVariant(null);
+                              setVariantForm({ variantName: '', variantType: 'гр', amount: '', price: '' });
+                              setShowVariantForm(true);
+                            }}
+                            className="cyber-button text-sm"
+                          >
+                            + Add Variant
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedProductForVariants(null);
+                              setVariants([]);
+                              setShowVariantForm(false);
+                              setSelectedVariantForStock(null);
+                            }}
+                            className="text-red-500 hover:underline"
+                          >
+                            ✕ Close
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Variant Form */}
+                      {showVariantForm && (
+                        <div className="border border-neon-green/30 rounded p-4 mb-4 bg-neon-green/5">
+                          <h3 className="text-lg font-bold mb-3 text-neon-green">
+                            {editingVariant ? 'Edit Variant' : 'Create New Variant'}
+                          </h3>
+                          <form onSubmit={handleVariantSubmit} className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block mb-1 text-neon-cyan text-sm">
+                                  Variant Name (e.g., "5гр", "10гр") *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={variantForm.variantName}
+                                  onChange={(e) => setVariantForm({ ...variantForm, variantName: e.target.value })}
+                                  className="cyber-input"
+                                  placeholder="5гр"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block mb-1 text-neon-cyan text-sm">
+                                  Type *
+                                </label>
+                                <select
+                                  value={variantForm.variantType}
+                                  onChange={(e) => setVariantForm({ ...variantForm, variantType: e.target.value as 'гр' | 'бр' })}
+                                  className="cyber-input"
+                                  required
+                                >
+                                  <option value="гр">гр (grams)</option>
+                                  <option value="бр">бр (pieces)</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block mb-1 text-neon-cyan text-sm">
+                                  Amount *
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={variantForm.amount}
+                                  onChange={(e) => setVariantForm({ ...variantForm, amount: e.target.value })}
+                                  className="cyber-input"
+                                  placeholder="5.00"
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block mb-1 text-neon-cyan text-sm">
+                                  Price (€) *
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={variantForm.price}
+                                  onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })}
+                                  className="cyber-input"
+                                  placeholder="10.00"
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button type="submit" className="cyber-button flex-1">
+                                {editingVariant ? 'Update' : 'Create'} Variant
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setShowVariantForm(false);
+                                  setEditingVariant(null);
+                                  setVariantForm({ variantName: '', variantType: 'гр', amount: '', price: '' });
+                                }}
+                                className="cyber-button flex-1 bg-red-500/20"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+
+                      {/* Variants List */}
+                      <div className="space-y-3">
+                        {variants.length === 0 ? (
+                          <div className="text-center text-neon-cyan/60 py-8 text-sm">
+                            No variants yet. Create one to get started!
+                          </div>
+                        ) : (
+                          variants.map((variant) => (
+                            <div key={variant.id} className="border border-neon-green/30 rounded p-4">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <h4 className="text-lg font-bold text-neon-green">
+                                    {variant.variant_name}
+                                  </h4>
+                                  <p className="text-sm text-neon-cyan">
+                                    {variant.amount} {variant.variant_type} • €{parseFloat(variant.price).toFixed(2)}
+                                  </p>
+                                  <p className="text-xs text-neon-cyan/60">
+                                    {variant.is_active ? '✓ Active' : '✗ Inactive'}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleEditVariant(variant)}
+                                    className="text-neon-cyan hover:underline text-sm"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleManageVariantStock(variant.id)}
+                                    className="text-neon-green hover:underline text-sm"
+                                  >
+                                    Stock
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteVariant(variant.id)}
+                                    className="text-red-500 hover:underline text-sm"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Stock Management for this variant */}
+                              {selectedVariantForStock === variant.id && (
+                                <div className="mt-4 border-t border-neon-green/30 pt-4">
+                                  <h5 className="text-md font-bold mb-3 text-neon-cyan">
+                                    Stock by City
+                                  </h5>
+                                  <div className="space-y-2">
+                                    {variantStock.length === 0 ? (
+                                      <div className="text-sm text-neon-cyan/60">
+                                        No stock configured. Stock will be created when orders are placed.
+                                      </div>
+                                    ) : (
+                                      variantStock.map((stock: any) => (
+                                        <div key={stock.city_id} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center bg-neon-green/5 p-2 rounded">
+                                          <div className="text-sm font-bold text-neon-green">
+                                            {stock.city_name}
+                                          </div>
+                                          <div className="text-sm">
+                                            <label className="block text-xs text-neon-cyan mb-1">Total Stock:</label>
+                                            <input
+                                              type="number"
+                                              step="0.01"
+                                              defaultValue={stock.stock_amount}
+                                              id={`stock-${stock.city_id}`}
+                                              className="cyber-input text-sm w-full"
+                                            />
+                                          </div>
+                                          <div className="text-sm">
+                                            <label className="block text-xs text-neon-cyan mb-1">Reserved (auto):</label>
+                                            <div className="text-yellow-500 font-bold py-2 px-3 bg-cyber-dark rounded border border-neon-cyan/30">
+                                              {parseFloat(stock.reserved_amount).toFixed(2)}
+                                            </div>
+                                          </div>
+                                          <button
+                                            onClick={() => {
+                                              const stockInput = document.getElementById(`stock-${stock.city_id}`) as HTMLInputElement;
+                                              handleVariantStockUpdate(
+                                                variant.id,
+                                                stock.city_id,
+                                                parseFloat(stockInput.value)
+                                              );
+                                            }}
+                                            className="cyber-button text-xs"
+                                          >
+                                            Update Stock
+                                          </button>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => setSelectedVariantForStock(null)}
+                                    className="cyber-button text-sm mt-3 w-full"
+                                  >
+                                    Close Stock Management
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Price Tiers Manager removed - will be replaced with variants system in Етап 4 */}
 
                   <div className="cyber-card">
@@ -1161,14 +1490,12 @@ export default function AdminPanel() {
                                   >
                                     Locations
                                   </button>
-                                  {/* Price Tiers button - DISABLED
                                   <button
-                                    onClick={() => handleManagePriceTiers(product.id)}
+                                    onClick={() => handleManageVariants(product.id)}
                                     className="text-yellow-500 hover:underline text-sm"
                                   >
-                                    Price Tiers
+                                    Variants
                                   </button>
-                                  */}
                                   <button
                                     onClick={() => handleDeleteProduct(product.id)}
                                     className="text-red-500 hover:underline text-sm"
