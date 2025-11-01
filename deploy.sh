@@ -11,13 +11,13 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Check if .env exists
+# Check if .env exists, if not create from example
 if [ ! -f .env ]; then
-    echo -e "${RED}❌ Error: .env file not found!${NC}"
-    echo "Please copy .env.example to .env and configure it:"
-    echo "  cp .env.example .env"
-    echo "  nano .env"
-    exit 1
+    echo -e "${YELLOW}⚠️  .env file not found, creating from .env.example...${NC}"
+    cp .env.example .env
+    echo -e "${GREEN}✓${NC} .env file created"
+else
+    echo -e "${GREEN}✓${NC} .env file exists"
 fi
 
 # Load environment variables
