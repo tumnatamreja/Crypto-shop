@@ -25,12 +25,15 @@ fi
 echo "✓ Database container: $DB_CONTAINER"
 echo ""
 
-# Drop and recreate database
+# Drop and recreate database using cryptoshop user
 echo "🗄️  Recreating database..."
-docker exec -i $DB_CONTAINER psql -U postgres <<EOF
+docker exec -i $DB_CONTAINER psql -U cryptoshop -d postgres <<EOF
 DROP DATABASE IF EXISTS cryptoshop;
 CREATE DATABASE cryptoshop;
-\c cryptoshop
+EOF
+
+# Connect to new database and add extension
+docker exec -i $DB_CONTAINER psql -U cryptoshop -d cryptoshop <<EOF
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 EOF
 
@@ -39,13 +42,13 @@ echo ""
 
 # Run migration
 echo "📊 Running migration..."
-docker exec -i $DB_CONTAINER psql -U postgres -d cryptoshop < database/00_complete_migration.sql 2>&1 | grep -v "NOTICE:" | grep -v "^$" || true
+docker exec -i $DB_CONTAINER psql -U cryptoshop -d cryptoshop < database/00_complete_migration.sql 2>&1 | grep -v "NOTICE:" | grep -v "^$" || true
 
 echo ""
 echo "✅ Migration Complete!"
 echo ""
 echo "📋 Verify tables:"
-docker exec -i $DB_CONTAINER psql -U postgres -d cryptoshop -c "\dt" | grep -v "^$"
+docker exec -i $DB_CONTAINER psql -U cryptoshop -d cryptoshop -c "\dt" | grep -v "^$"
 
 echo ""
 echo "👤 Default admin user:"

@@ -59,10 +59,9 @@ echo ""
 echo -e "${YELLOW}Running migration...${NC}"
 
 # Drop existing database and recreate (CLEAN START)
-docker exec -i $DB_CONTAINER psql -U postgres <<EOF
+docker exec -i $DB_CONTAINER psql -U cryptoshop -d postgres <<EOF
 DROP DATABASE IF EXISTS cryptoshop;
 CREATE DATABASE cryptoshop;
-GRANT ALL PRIVILEGES ON DATABASE cryptoshop TO cryptoshop;
 EOF
 
 echo -e "${GREEN}✓${NC} Database recreated"
